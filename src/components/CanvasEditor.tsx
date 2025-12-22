@@ -28,6 +28,8 @@ interface CanvasEditorProps {
   onAddImage: () => void;
   onPresent: () => void;
   aspectRatio?: string; // Canvas aspect ratio for description
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
 }
 
 const CanvasEditor = ({
@@ -39,12 +41,15 @@ const CanvasEditor = ({
   onAddImage,
   onPresent,
   aspectRatio,
+  isSelected,
+  onToggleSelection,
 }: CanvasEditorProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [actualScale, setActualScale] = useState(initialScale);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
   // Calculate actual scale based on rendered canvas size
   useEffect(() => {
@@ -187,8 +192,16 @@ const CanvasEditor = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, deleteSelected]);
 
-  // Find the media object (image or video) for description
-  const mediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
+  // Find all media objects (images or videos) for carousel
+  const mediaObjects = objects.filter(obj => obj.type === 'image' || obj.type === 'video');
+  const mediaObject = mediaObjects[currentMediaIndex] || mediaObjects[0];
+  
+  // Reset index when media objects change
+  useEffect(() => {
+    if (currentMediaIndex >= mediaObjects.length && mediaObjects.length > 0) {
+      setCurrentMediaIndex(0);
+    }
+  }, [mediaObjects.length, currentMediaIndex]);
 
   return (
     <div className="relative w-full h-full group">
@@ -205,82 +218,158 @@ const CanvasEditor = ({
         onClick={handleCanvasClick}
       >
         {/* Render Objects */}
-        {objects.map((object) => (
-          <div
-            key={object.id}
-            className="absolute cursor-move overflow-hidden group/object"
-            style={{
-              left: `${object.x * scale}px`,
-              top: `${object.y * scale}px`,
-              width: `${object.width * scale}px`,
-              height: `${object.height * scale}px`,
-              margin: 0,
-              padding: 0,
-            }}
-            onMouseDown={(e) => handleMouseDown(e, object.id)}
-          >
-            {object.type === 'image' ? (
-              <img
-                src={object.content}
-                alt="Canvas image"
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-                draggable={false}
-                style={{ objectFit: 'cover' }}
-              />
-            ) : object.type === 'video' ? (
-              <video
-                src={object.content}
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-                draggable={false}
-                autoPlay
-                loop
-                muted
-                playsInline
-                style={{ objectFit: 'cover' }}
-              />
-            ) : (
-              <div
-                className="w-full h-full flex items-center justify-center pointer-events-none select-none overflow-hidden"
-                style={{
-                  fontSize: `${(object.fontSize || 24) * scale}px`,
-                  color: object.color || '#FFFFFF',
-                  fontFamily: object.fontFamily || 'var(--font-secondary)',
-                  whiteSpace: 'nowrap',
-                }}
+        {objects.map((object) => {
+          // For media objects, only show the current one in carousel
+          if ((object.type === 'image' || object.type === 'video') && mediaObjects.length > 1) {
+            const objectIndex = mediaObjects.findIndex(obj => obj.id === object.id);
+            if (objectIndex !== currentMediaIndex) {
+              return null; // Hide non-current media objects
+            }
+          }
+          
+          return (
+            <div
+              key={object.id}
+              className="absolute cursor-move overflow-hidden group/object"
+              style={{
+                left: `${object.x * scale}px`,
+                top: `${object.y * scale}px`,
+                width: `${object.width * scale}px`,
+                height: `${object.height * scale}px`,
+                margin: 0,
+                padding: 0,
+              }}
+              onMouseDown={(e) => handleMouseDown(e, object.id)}
+            >
+              {object.type === 'image' ? (
+                <img
+                  src={object.content}
+                  alt="Canvas image"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                  draggable={false}
+                  style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+                />
+              ) : object.type === 'video' ? (
+                <video
+                  src={object.content}
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                  draggable={false}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+                />
+              ) : (
+                <div
+                  className="w-full h-full flex items-center justify-center pointer-events-none select-none overflow-hidden"
+                  style={{
+                    fontSize: `${(object.fontSize || 24) * scale}px`,
+                    color: object.color || '#FFFFFF',
+                    fontFamily: object.fontFamily || 'var(--font-secondary)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {object.content || 'Text'}
+                </div>
+              )}
+              
+            </div>
+          );
+        })}
+        
+        {/* Carousel Navigation - Only show when multiple media objects */}
+        {mediaObjects.length > 1 && (
+          <>
+            {/* Previous Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentMediaIndex((prev) => (prev - 1 + mediaObjects.length) % mediaObjects.length);
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 z-30 pointer-events-auto opacity-0 group-hover:opacity-100 border-0 outline-none"
+              title="Previous image"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                {object.content || 'Text'}
-              </div>
-            )}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
             
-          </div>
-        ))}
+            {/* Next Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentMediaIndex((prev) => (prev + 1) % mediaObjects.length);
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 z-30 pointer-events-auto opacity-0 group-hover:opacity-100 border-0 outline-none"
+              title="Next image"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+            
+            {/* Carousel Indicator */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-auto">
+              {mediaObjects.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentMediaIndex(index);
+                  }}
+                  className={`h-1.5 rounded-full transition-all duration-200 opacity-60 ${
+                    index === currentMediaIndex
+                      ? 'bg-white w-4'
+                      : 'bg-white-60 hover:bg-white-80 w-1.5'
+                  }`}
+                  title={`Go to image ${index + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
         
         {/* Description Tooltip - Bottom Left, 30px from edges, only on hover */}
         {mediaObject && (
-          <div className="absolute bottom-[30px] left-[30px] bg-grey-bg-3 text-white font-secondary text-xs p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20 max-w-[300px]">
+          <div className="absolute bottom-4 left-4 bg-button-bg font-secondary text-xs p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-40 max-w-[300px]">
             <div className="space-y-1">
               {mediaObject.dateUploaded && (
                 <div>
-                  <span className="text-white-60">Date uploaded: </span>
-                  <span>{new Date(mediaObject.dateUploaded).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                  <span className="text-descriptor-label">Date uploaded: </span>
+                  <span className="text-descriptor-content">{new Date(mediaObject.dateUploaded).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                 </div>
               )}
               {mediaObject.comments && mediaObject.comments.trim() && (
                 <div>
-                  <span className="text-white-60">Comments: </span>
-                  <span className="text-white">{mediaObject.comments}</span>
-                </div>
-              )}
-              {aspectRatio && (
-                <div>
-                  <span className="text-white-60">Aspect Ratio: </span>
-                  <span>{aspectRatio}</span>
+                  <span className="text-descriptor-label">Comments: </span>
+                  <span className="text-descriptor-content">{mediaObject.comments}</span>
                 </div>
               )}
               {mediaObject.tags && mediaObject.tags.length > 0 && (
                 <div>
-                  <span className="text-white-60">Tags: </span>
-                  <span>{mediaObject.tags.join(', ')}</span>
+                  <span className="text-descriptor-label">Tags: </span>
+                  <span className="text-descriptor-content">{mediaObject.tags.join(', ')}</span>
                 </div>
               )}
             </div>
@@ -289,10 +378,36 @@ const CanvasEditor = ({
       </div>
 
       {/* Toolbar - Only visible on hover */}
-      <div className="absolute top-2 left-2 flex gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      <div className="absolute top-4 left-4 flex gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 items-center">
+        {/* Selection Checkbox - Same style as toolbar buttons, appears on hover */}
+        {onToggleSelection && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelection();
+            }}
+            className={`w-10 h-10 rounded-lg transition-all duration-200 active:opacity-80 flex items-center justify-center ${
+              isSelected
+                ? 'bg-white text-black hover:bg-white-90'
+                : 'bg-button-bg text-button-text'
+            }`}
+            aria-label={isSelected ? 'Deselect canvas' : 'Select canvas'}
+            title={isSelected ? 'Deselect canvas' : 'Select canvas'}
+          >
+            {isSelected ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </button>
+        )}
         <button
           onClick={onAddImage}
-          className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+          className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
           title="Add Image or Video"
         >
           <svg
@@ -312,7 +427,7 @@ const CanvasEditor = ({
         {objects.filter((obj) => obj.type === 'image' || obj.type === 'video').length > 0 && (
           <button
             onClick={onPresent}
-            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-white text-text-primary hover:text-black border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
             title="Present (View all images/videos)"
           >
             <svg
@@ -331,10 +446,10 @@ const CanvasEditor = ({
           </button>
         )}
         {(() => {
-          const mediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
-          if (!mediaObject) return null;
+          const mediaObjects = objects.filter(obj => obj.type === 'image' || obj.type === 'video');
+          if (mediaObjects.length === 0) return null;
 
-          const handleDownload = async () => {
+          const downloadSingleFile = async (mediaObject: CanvasObject, index: number) => {
             try {
               const url = mediaObject.content;
               
@@ -346,7 +461,8 @@ const CanvasEditor = ({
                 
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.download = `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
+                link.download = `canvas-${mediaObject.type}-${index + 1}-${Date.now()}.${extension}`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -360,7 +476,9 @@ const CanvasEditor = ({
                 // Try to get filename from URL
                 try {
                   const urlPath = new URL(url).pathname;
-                  const filename = urlPath.split('/').pop() || `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                  const originalFilename = urlPath.split('/').pop() || '';
+                  const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
+                  const filename = originalFilename || `canvas-${mediaObject.type}-${index + 1}-${Date.now()}.${extension}`;
                   
                   const link = document.createElement('a');
                   link.href = blobUrl;
@@ -373,7 +491,8 @@ const CanvasEditor = ({
                   // If URL parsing fails, use generic filename
                   const link = document.createElement('a');
                   link.href = blobUrl;
-                  link.download = `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                  const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
+                  link.download = `canvas-${mediaObject.type}-${index + 1}-${Date.now()}.${extension}`;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
@@ -381,17 +500,33 @@ const CanvasEditor = ({
                 }
               }
             } catch (error) {
-              console.error('Failed to download:', error);
+              console.error(`Failed to download file ${index + 1}:`, error);
               // Fallback: open in new tab
               window.open(mediaObject.content, '_blank');
+            }
+          };
+
+          const handleDownload = async () => {
+            if (mediaObjects.length === 1) {
+              // Single file - download immediately
+              await downloadSingleFile(mediaObjects[0], 0);
+            } else {
+              // Multiple files - download all sequentially with small delay
+              for (let i = 0; i < mediaObjects.length; i++) {
+                await downloadSingleFile(mediaObjects[i], i);
+                // Small delay between downloads to prevent browser blocking
+                if (i < mediaObjects.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                }
+              }
             }
           };
 
           return (
             <button
               onClick={handleDownload}
-              className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
-              title="Download Original Image/Video"
+              className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
+              title={mediaObjects.length > 1 ? `Download All ${mediaObjects.length} Files` : 'Download Original Image/Video'}
             >
               <svg
                 className="w-5 h-5"
@@ -412,7 +547,7 @@ const CanvasEditor = ({
         {selectedId && (
           <button
             onClick={deleteSelected}
-            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-white text-text-primary hover:text-black border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
             title="Delete Selected (Del)"
           >
             <svg

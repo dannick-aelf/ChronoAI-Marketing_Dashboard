@@ -57,7 +57,7 @@ const TextEditorModal = ({
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Enter text..."
-              className="w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:ring-2 focus:ring-white resize-none"
+              className="w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none resize-none"
               rows={3}
               style={{ minHeight: '80px' }}
             />
@@ -74,7 +74,7 @@ const TextEditorModal = ({
                 onChange={(e) => setFontSize(Math.max(8, Math.min(200, parseInt(e.target.value) || 24)))}
                 min="8"
                 max="200"
-                className="w-full px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:ring-2 focus:ring-white"
+                className="w-full px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none"
                 style={{ minHeight: '44px' }}
               />
             </div>
@@ -93,7 +93,7 @@ const TextEditorModal = ({
                   type="text"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:ring-2 focus:ring-white"
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none"
                   style={{ minHeight: '44px', width: '100%' }}
                 />
               </div>
@@ -107,7 +107,7 @@ const TextEditorModal = ({
             <select
               value={fontFamily}
               onChange={(e) => setFontFamily(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:ring-2 focus:ring-white"
+              className="w-full px-4 py-2.5 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none"
               style={{ minHeight: '44px' }}
             >
               <option value="Space Grotesk">Space Grotesk</option>

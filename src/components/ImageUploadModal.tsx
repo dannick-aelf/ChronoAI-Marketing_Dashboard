@@ -9,28 +9,58 @@ interface MediaUploadModalProps {
   initialMediaType?: 'image' | 'video';
   initialTags?: string[];
   initialComments?: string;
+  initialFiles?: MediaFile[]; // Array of existing files (for carousel editing)
   aspectRatio?: string;
   allowMultiple?: boolean;
 }
 
-const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initialMediaUrl, initialMediaType, initialTags, initialComments, allowMultiple }: MediaUploadModalProps) => {
+interface MediaFile {
+  url: string;
+  type: 'image' | 'video';
+  tags?: string[];
+  comments?: string;
+  id?: string; // Unique identifier for stable keys
+}
+
+const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initialMediaUrl, initialMediaType, initialTags, initialComments, initialFiles, allowMultiple }: MediaUploadModalProps) => {
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [tags, setTags] = useState<string[]>(initialTags || []);
   const [tagInput, setTagInput] = useState('');
   const [comments, setComments] = useState<string>(initialComments || '');
   const [error, setError] = useState('');
-  // Uploading state for future use (e.g., showing loading indicator)
-  // const [uploading, setUploading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([]);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Update state when initial values change (when modal opens with existing image)
   useEffect(() => {
     if (isOpen) {
-      setMediaUrl(initialMediaUrl || '');
-      setMediaType(initialMediaType || null);
-      setTags(initialTags || []);
-      setComments(initialComments || '');
+      // If initialFiles is provided (carousel editing), use those files
+      if (initialFiles && initialFiles.length > 0) {
+        // Add unique IDs to files if they don't have them
+        const filesWithIds = initialFiles.map((file, idx) => ({
+          ...file,
+          id: file.id || `${file.url}-${idx}-${Date.now()}`,
+        }));
+        setSelectedFiles(filesWithIds);
+        setCurrentPreviewIndex(0);
+        // Set form fields from first file
+        setMediaUrl(initialFiles[0].url);
+        setMediaType(initialFiles[0].type);
+        setTags(initialFiles[0].tags || []);
+        setComments(initialFiles[0].comments || '');
+      } else {
+        // Single file mode
+        setMediaUrl(initialMediaUrl || '');
+        setMediaType(initialMediaType || null);
+        setTags(initialTags || []);
+        setComments(initialComments || '');
+        setSelectedFiles([]);
+        setCurrentPreviewIndex(0);
+      }
     } else {
       // Reset when modal closes
       setMediaUrl('');
@@ -39,8 +69,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       setTagInput('');
       setComments('');
       setError('');
+      setSelectedFiles([]);
+      setCurrentPreviewIndex(0);
+      setDraggedIndex(null);
+      setDragOverIndex(null);
     }
-  }, [isOpen, initialMediaUrl, initialMediaType, initialTags, initialComments]);
+  }, [isOpen, initialMediaUrl, initialMediaType, initialTags, initialComments, initialFiles]);
 
   // Handle ESC key to close modal
   useEffect(() => {
@@ -59,13 +93,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // If multiple files and onConfirmMultiple is provided, handle multiple uploads
+    // If multiple files and onConfirmMultiple is provided, load files for preview
     if (allowMultiple && onConfirmMultiple && files.length >= 1) {
-      // setUploading(true);
       setError('');
       
       const filePromises = Array.from(files).map((file) => {
-        return new Promise<{ url: string; type: 'image' | 'video'; tags?: string[]; comments?: string }>((resolve, reject) => {
+        return new Promise<MediaFile>((resolve, reject) => {
           const isImage = file.type.startsWith('image/');
           const isVideo = file.type.startsWith('video/');
 
@@ -83,6 +116,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
                 type: isImage ? 'image' : 'video',
                 tags: tags.length > 0 ? tags : undefined,
                 comments: comments.trim() || undefined,
+                id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               });
             } else {
               reject(new Error(`Failed to read file: ${file.name}`));
@@ -95,16 +129,11 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
 
       try {
         const results = await Promise.all(filePromises);
-        onConfirmMultiple(results);
-        // setUploading(false);
-        setTags([]);
-        setTagInput('');
-        setComments('');
+        setSelectedFiles(results);
+        setCurrentPreviewIndex(0);
         setError('');
-        onClose();
       } catch (err: any) {
-        setError(err.message || 'Failed to upload some files');
-        // setUploading(false);
+        setError(err.message || 'Failed to load some files');
       }
       return;
     }
@@ -154,7 +183,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     if (mediaUrl.trim()) {
       // Determine type from URL or use detected type
       const type = mediaType || (mediaUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : 'image');
-      onConfirm(mediaUrl, type, tags.length > 0 ? tags : undefined);
+      onConfirm(mediaUrl, type, tags.length > 0 ? tags : undefined, comments.trim() || undefined);
       setMediaUrl('');
       setMediaType(null);
       setTags([]);
@@ -169,19 +198,117 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
   const handleClose = () => {
     setMediaUrl('');
     setMediaType(null);
+    setTags([]);
+    setTagInput('');
+    setComments('');
     setError('');
+    setSelectedFiles([]);
+    setCurrentPreviewIndex(0);
     onClose();
+  };
+
+  const handleConfirmMultiple = () => {
+    if (selectedFiles.length > 0 && onConfirmMultiple) {
+      // Apply current tags and comments to all files if they were set after file selection
+      const filesWithMetadata = selectedFiles.map(file => ({
+        ...file,
+        tags: tags.length > 0 ? tags : file.tags,
+        comments: comments.trim() || file.comments,
+      }));
+      onConfirmMultiple(filesWithMetadata);
+      setSelectedFiles([]);
+      setCurrentPreviewIndex(0);
+      setTags([]);
+      setTagInput('');
+      setComments('');
+      setError('');
+      onClose();
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if we're actually leaving the element (not just moving to a child)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragOverIndex(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverIndex(null);
+    
+    if (draggedIndex === null) {
+      return;
+    }
+    
+    if (draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    const newFiles = [...selectedFiles];
+    const [draggedFile] = newFiles.splice(draggedIndex, 1);
+    
+    // Calculate the correct insertion index
+    let insertIndex = dropIndex;
+    if (draggedIndex < dropIndex) {
+      // Dragging down: adjust because we removed an item before the drop position
+      insertIndex = dropIndex - 1;
+    }
+    
+    newFiles.splice(insertIndex, 0, draggedFile);
+    setSelectedFiles(newFiles);
+    
+    // Update preview index to follow the moved item
+    setCurrentPreviewIndex(insertIndex);
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleRemoveFile = (index: number) => {
+    const newFiles = selectedFiles.filter((_, i) => i !== index);
+    setSelectedFiles(newFiles);
+    if (currentPreviewIndex >= newFiles.length && newFiles.length > 0) {
+      setCurrentPreviewIndex(newFiles.length - 1);
+    } else if (newFiles.length === 0) {
+      setCurrentPreviewIndex(0);
+    }
   };
 
   return (
     <>
       <div
-        className="fixed inset-0 bg-black bg-opacity-60 z-40"
+        className="fixed inset-0 bg-black bg-opacity-60 z-[100]"
         onClick={handleClose}
       />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
         <div
-          className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6"
+          className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6 my-auto max-h-[90vh] overflow-y-auto relative z-[101]"
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="text-xl font-primary text-text-primary mb-4">
@@ -225,14 +352,8 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleTagInputKeyDown}
                 placeholder="Enter a tag and press Enter"
-                className="flex-1 px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-white"
+                className="flex-1 px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border"
               />
-              <button
-                onClick={handleAddTag}
-                className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200"
-              >
-                Add
-              </button>
             </div>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -264,28 +385,57 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
               onChange={(e) => setComments(e.target.value)}
               placeholder="Enter comments..."
               rows={3}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-white resize-none"
+              className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border resize-none"
             />
           </div>
 
-          {mediaUrl && (
+          {/* File List with Reorder Controls */}
+          {selectedFiles.length > 0 && (
             <div className="mb-4">
-              <div className="w-full rounded-lg border-2 border-border bg-grey-bg-3 overflow-hidden relative" style={{ aspectRatio: '4/5', minHeight: '300px', maxHeight: '500px' }}>
-                {mediaType === 'video' ? (
-                  <video
-                    src={mediaUrl}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    controls
-                    onError={() => setError('Invalid video URL')}
-                  />
-                ) : (
-                  <img
-                    src={mediaUrl}
-                    alt="Preview"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={() => setError('Invalid image URL')}
-                  />
-                )}
+              <div className="space-y-2">
+                {selectedFiles.map((file, index) => (
+                  <div
+                    key={file.id || file.url || index}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center gap-2 p-2 rounded-lg bg-grey-bg-3 border border-border cursor-move transition-all ${
+                      draggedIndex === index ? 'opacity-50' : ''
+                    } ${
+                      dragOverIndex === index ? 'border-border bg-grey-bg-4' : ''
+                    }`}
+                  >
+                    <div className="cursor-grab active:cursor-grabbing opacity-60 hover:opacity-100 transition-opacity pointer-events-none">
+                      <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+                        {file.type === 'video' ? (
+                          <video src={file.url} className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={file.url} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <span className="text-sm font-secondary text-text-primary">
+                        {file.type === 'image' ? 'Image' : 'Video'} {index + 1}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFile(index)}
+                      className="w-8 h-8 rounded flex items-center justify-center hover:bg-grey-bg-4 active:opacity-80 text-text-secondary hover:text-text-primary transition-all"
+                      title="Remove"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -298,13 +448,23 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
             >
               Cancel
             </button>
-            <button
-              onClick={handleUrlSubmit}
-              className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-90 transition-all duration-200 active:opacity-80"
-              style={{ minHeight: '44px' }}
-            >
-              {initialMediaUrl ? 'Save' : 'Add'}
-            </button>
+            {selectedFiles.length > 0 ? (
+              <button
+                onClick={handleConfirmMultiple}
+                className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-80 transition-all duration-200 active:opacity-80"
+                style={{ minHeight: '44px' }}
+              >
+                {initialFiles && initialFiles.length > 0 ? 'Save' : 'Add'} {selectedFiles.length} {selectedFiles.length === 1 ? 'File' : 'Files'}
+              </button>
+            ) : (
+              <button
+                onClick={mediaUrl ? handleUrlSubmit : () => setError('Please select a file')}
+                className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-80 transition-all duration-200 active:opacity-80"
+                style={{ minHeight: '44px' }}
+              >
+                {initialMediaUrl ? 'Save' : 'Add'}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -2,9 +2,10 @@ interface DeleteConfirmModalProps {
   isOpen: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  count?: number;
 }
 
-const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel }: DeleteConfirmModalProps) => {
+const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel, count = 1 }: DeleteConfirmModalProps) => {
   if (!isOpen) return null;
 
   return (
@@ -22,10 +23,10 @@ const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel }: DeleteConfirmModalP
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="text-xl font-primary text-text-primary mb-2">
-            Delete Canvas
+            Delete {count > 1 ? `${count} Canvases` : 'Canvas'}
           </h3>
           <p className="text-text-secondary font-secondary mb-6">
-            Are you sure you want to delete this canvas? This action cannot be undone.
+            Are you sure you want to delete {count > 1 ? `these ${count} canvases` : 'this canvas'}? This action cannot be undone.
           </p>
           
           <div className="flex gap-3 justify-end">

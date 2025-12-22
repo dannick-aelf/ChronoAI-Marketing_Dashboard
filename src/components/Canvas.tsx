@@ -5,15 +5,24 @@ import PresentationCarousel from './PresentationCarousel';
 
 type AspectRatio = '4:5' | '9:16';
 
+export interface CanvasMediaGroup {
+  canvasId: string;
+  mediaObjects: CanvasObject[];
+}
+
 interface CanvasProps {
   aspectRatio: AspectRatio;
   canvasId: string;
   objects: CanvasObject[];
   allCategoryObjects: CanvasObject[];
+  canvasGroups?: CanvasMediaGroup[];
   onObjectsChange: (objects: CanvasObject[]) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
   totalCanvases?: number;
+  isSelected?: boolean;
+  onToggleSelection?: (canvasId: string) => void;
+  selectionMode?: boolean;
 }
 
 // Canvas dimensions
@@ -22,7 +31,7 @@ const canvasSizes = {
   '9:16': { width: 1080, height: 1920 },
 } as const;
 
-const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsChange, onDelete, canDelete, totalCanvases }: CanvasProps) => {
+const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, canvasGroups, onObjectsChange, onDelete, canDelete, totalCanvases, isSelected, onToggleSelection, selectionMode }: CanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [showMediaModal, setShowMediaModal] = useState(false);
@@ -95,38 +104,21 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
   const scale = dimensions.width > 0 ? dimensions.width / actualWidth : 0;
 
   const handleAddMedia = (url: string, type: 'image' | 'video', tags?: string[], comments?: string) => {
-    const existingMediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
-    
-    if (existingMediaObject) {
-      // Update existing media object
-      const updatedObject: CanvasObject = {
-        ...existingMediaObject,
-        content: url,
-        type,
-        tags: tags,
-        comments: comments,
-        aspectRatio: aspectRatio,
-        // Preserve dateUploaded if it exists, otherwise set it
-        dateUploaded: existingMediaObject.dateUploaded || new Date().toISOString(),
-      };
-      onObjectsChange(objects.map(obj => obj.id === existingMediaObject.id ? updatedObject : obj));
-    } else {
-      // Create new media object
-      const newObject: CanvasObject = {
-        id: `${type}-${Date.now()}`,
-        type,
-        x: 0,
-        y: 0,
-        width: actualWidth,
-        height: actualHeight,
-        content: url,
-        dateUploaded: new Date().toISOString(),
-        aspectRatio: aspectRatio,
-        tags: tags,
-        comments: comments,
-      };
-      onObjectsChange([...objects, newObject]);
-    }
+    // Always create a new media object to allow multiple images per canvas
+    const newObject: CanvasObject = {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      x: 0,
+      y: 0,
+      width: actualWidth,
+      height: actualHeight,
+      content: url,
+      dateUploaded: new Date().toISOString(),
+      aspectRatio: aspectRatio,
+      tags: tags,
+      comments: comments,
+    };
+    onObjectsChange([...objects, newObject]);
   };
 
 
@@ -135,18 +127,21 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className="bg-grey-bg-2 border-2 border-border rounded-lg shadow-elevated relative overflow-hidden w-full"
+        className={`bg-grey-bg-2 shadow-elevated relative overflow-hidden w-full group transition-all duration-200 box-border ${
+          isSelected ? 'border-selected bg-selected border-[5px]' : 'border-2 border-border'
+        }`}
         style={{
           aspectRatio: `${actualWidth} / ${actualHeight}`,
           minWidth: '320px',
           width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Delete Canvas Button */}
         {canDelete && (
           <button
             onClick={() => onDelete(canvasId)}
-            className="absolute top-2 right-2 w-10 h-10 rounded-full bg-grey-bg-4 hover:bg-white-40 text-white flex items-center justify-center transition-all duration-200 active:opacity-80 active:scale-[0.95] shadow-lg z-30"
+            className="absolute top-2 right-2 w-10 h-10 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 active:opacity-80 active:scale-[0.95] shadow-lg z-30 opacity-0 group-hover:opacity-100"
             aria-label="Delete canvas"
             style={{
               minWidth: '40px',
@@ -171,7 +166,19 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
 
         {/* Canvas Editor */}
         {dimensions.width > 0 && scale > 0 ? (
-          <div className="absolute inset-0 w-full h-full">
+          <div 
+            className="absolute w-full h-full" 
+            style={{ 
+              top: isSelected ? '-5px' : '-2px',
+              left: isSelected ? '-5px' : '-2px',
+              right: isSelected ? '-5px' : '-2px',
+              bottom: isSelected ? '-5px' : '-2px',
+              width: isSelected ? 'calc(100% + 10px)' : 'calc(100% + 4px)',
+              height: isSelected ? 'calc(100% + 10px)' : 'calc(100% + 4px)',
+              margin: 0,
+              padding: 0,
+            }}
+          >
               <CanvasEditor
                 width={actualWidth}
                 height={actualHeight}
@@ -181,6 +188,8 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
                 onAddImage={() => setShowMediaModal(true)}
                 onPresent={() => setShowPresentation(true)}
                 aspectRatio={aspectRatio}
+                isSelected={isSelected}
+                onToggleSelection={onToggleSelection ? () => onToggleSelection(canvasId) : undefined}
               />
           </div>
         ) : (
@@ -212,18 +221,48 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
         isOpen={showMediaModal}
         onClose={() => setShowMediaModal(false)}
         onConfirm={handleAddMedia}
+        onConfirmMultiple={(files) => {
+          // Replace all existing media objects with the new files
+          const nonMediaObjects = objects.filter(obj => obj.type !== 'image' && obj.type !== 'video');
+          const newMediaObjects = files.map((file, index) => {
+            const { width: actualWidth, height: actualHeight } = canvasSizes[aspectRatio];
+            return {
+              id: `${file.type}-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+              type: file.type,
+              x: 0,
+              y: 0,
+              width: actualWidth,
+              height: actualHeight,
+              content: file.url,
+              dateUploaded: new Date().toISOString(),
+              aspectRatio: aspectRatio,
+              tags: file.tags,
+              comments: file.comments,
+            };
+          });
+          onObjectsChange([...nonMediaObjects, ...newMediaObjects]);
+        }}
         initialMediaUrl={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.content}
         initialMediaType={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.type as 'image' | 'video' | undefined}
         initialTags={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.tags}
         initialComments={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.comments}
+        initialFiles={objects
+          .filter(obj => obj.type === 'image' || obj.type === 'video')
+          .map(obj => ({
+            url: obj.content,
+            type: obj.type as 'image' | 'video',
+            tags: obj.tags,
+            comments: obj.comments,
+          }))}
         aspectRatio={aspectRatio}
-        allowMultiple={false}
+        allowMultiple={true}
       />
       <PresentationCarousel
         key={showPresentation ? 'open' : 'closed'}
         isOpen={showPresentation}
         onClose={() => setShowPresentation(false)}
         objects={allCategoryObjects}
+        canvasGroups={canvasGroups}
         initialCanvasId={canvasId}
         totalCanvases={totalCanvases}
       />

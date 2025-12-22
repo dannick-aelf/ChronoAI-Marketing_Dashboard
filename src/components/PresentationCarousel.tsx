@@ -1,44 +1,116 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { type CanvasObject } from './CanvasEditor';
+import { type CanvasMediaGroup } from './Canvas';
 
 interface PresentationCarouselProps {
   isOpen: boolean;
   onClose: () => void;
   objects: CanvasObject[];
+  canvasGroups?: CanvasMediaGroup[]; // Grouped by canvas for hierarchical navigation
   initialCanvasId?: string;
   totalCanvases?: number;
   key?: string | number;
 }
 
-const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: PresentationCarouselProps) => {
-  // Filter only image and video objects - memoize to prevent unnecessary recalculations
-  const mediaObjects = useMemo(() => {
-    return objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
-  }, [objects]);
+const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialCanvasId, totalCanvases }: PresentationCarouselProps) => {
+  // If canvasGroups is provided, use hierarchical navigation (within canvas + between canvases)
+  // Otherwise, use flat navigation (backward compatibility)
+  const useHierarchicalNavigation = canvasGroups && canvasGroups.length > 0;
   
-  // Initialize to 0 - will reset when component remounts via key prop
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // Flat list for backward compatibility
+  const mediaObjects = useMemo(() => {
+    if (useHierarchicalNavigation) return [];
+    return objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
+  }, [objects, useHierarchicalNavigation]);
 
-  // Reset index when modal opens or objects change
+  // Hierarchical navigation state
+  const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+
+  // Initialize based on initialCanvasId if provided
   useEffect(() => {
-    if (isOpen && mediaObjects.length > 0) {
-      setCurrentIndex(0);
+    if (isOpen && useHierarchicalNavigation && canvasGroups) {
+      if (initialCanvasId) {
+        const canvasIndex = canvasGroups.findIndex(g => g.canvasId === initialCanvasId);
+        if (canvasIndex >= 0) {
+          setCurrentCanvasIndex(canvasIndex);
+          setCurrentMediaIndex(0);
+        } else {
+          setCurrentCanvasIndex(0);
+          setCurrentMediaIndex(0);
+        }
+      } else {
+        setCurrentCanvasIndex(0);
+        setCurrentMediaIndex(0);
+      }
+    } else if (isOpen && !useHierarchicalNavigation && mediaObjects.length > 0) {
+      setCurrentMediaIndex(0);
     }
-  }, [isOpen, mediaObjects.length]);
+  }, [isOpen, useHierarchicalNavigation, canvasGroups, initialCanvasId, mediaObjects.length]);
+
+  // Get current canvas group and media objects
+  const currentCanvasGroup = useHierarchicalNavigation && canvasGroups 
+    ? canvasGroups[currentCanvasIndex] 
+    : null;
+  const currentCanvasMedia = currentCanvasGroup?.mediaObjects || [];
+  
+  // Get current object to display
+  const currentObject = useHierarchicalNavigation
+    ? (currentCanvasMedia[currentMediaIndex] || null)
+    : (mediaObjects[currentMediaIndex] || null);
 
   const handleNext = useCallback(() => {
-    setCurrentIndex((prev) => {
-      if (mediaObjects.length === 0) return prev;
-      return (prev + 1) % mediaObjects.length;
-    });
-  }, [mediaObjects.length]);
+    if (useHierarchicalNavigation && canvasGroups) {
+      // Navigate within current canvas first
+      if (currentMediaIndex < currentCanvasMedia.length - 1) {
+        setCurrentMediaIndex(prev => prev + 1);
+      } else {
+        // Move to next canvas
+        if (currentCanvasIndex < canvasGroups.length - 1) {
+          setCurrentCanvasIndex(prev => prev + 1);
+          setCurrentMediaIndex(0);
+        } else {
+          // Loop back to first canvas
+          setCurrentCanvasIndex(0);
+          setCurrentMediaIndex(0);
+        }
+      }
+    } else {
+      // Flat navigation
+      setCurrentMediaIndex((prev) => {
+        if (mediaObjects.length === 0) return prev;
+        return (prev + 1) % mediaObjects.length;
+      });
+    }
+  }, [useHierarchicalNavigation, canvasGroups, currentMediaIndex, currentCanvasMedia.length, currentCanvasIndex, mediaObjects.length]);
 
   const handlePrevious = useCallback(() => {
-    setCurrentIndex((prev) => {
-      if (mediaObjects.length === 0) return prev;
-      return (prev - 1 + mediaObjects.length) % mediaObjects.length;
-    });
-  }, [mediaObjects.length]);
+    if (useHierarchicalNavigation && canvasGroups) {
+      // Navigate within current canvas first
+      if (currentMediaIndex > 0) {
+        setCurrentMediaIndex(prev => prev - 1);
+      } else {
+        // Move to previous canvas
+        if (currentCanvasIndex > 0) {
+          setCurrentCanvasIndex(prev => prev - 1);
+          const prevCanvasMedia = canvasGroups[currentCanvasIndex - 1]?.mediaObjects || [];
+          setCurrentMediaIndex(prevCanvasMedia.length - 1);
+        } else {
+          // Loop to last canvas
+          const lastCanvasIndex = canvasGroups.length - 1;
+          const lastCanvasMedia = canvasGroups[lastCanvasIndex]?.mediaObjects || [];
+          setCurrentCanvasIndex(lastCanvasIndex);
+          setCurrentMediaIndex(Math.max(0, lastCanvasMedia.length - 1));
+        }
+      }
+    } else {
+      // Flat navigation
+      setCurrentMediaIndex((prev) => {
+        if (mediaObjects.length === 0) return prev;
+        return (prev - 1 + mediaObjects.length) % mediaObjects.length;
+      });
+    }
+  }, [useHierarchicalNavigation, canvasGroups, currentMediaIndex, currentCanvasIndex, mediaObjects.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,9 +129,12 @@ const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: Prese
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleNext, handlePrevious, onClose]);
 
-  if (!isOpen || mediaObjects.length === 0) return null;
+  // Check if we have content to display
+  const hasContent = useHierarchicalNavigation
+    ? (currentObject !== null)
+    : (mediaObjects.length > 0);
 
-  const currentObject = mediaObjects[currentIndex];
+  if (!isOpen || !hasContent || !currentObject) return null;
 
   return (
     <>
@@ -75,7 +150,7 @@ const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: Prese
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-grey-bg-4 hover:bg-white-40 text-white flex items-center justify-center transition-all duration-200 pointer-events-auto"
+            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 pointer-events-auto border-0 outline-none"
             style={{ zIndex: 100 }}
             aria-label="Close presentation"
           >
@@ -97,9 +172,14 @@ const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: Prese
           {/* Previous Button - Always visible */}
           <button
             onClick={handlePrevious}
-            disabled={mediaObjects.length <= 1}
-            className={`absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-grey-bg-4 hover:bg-white-60 text-white flex items-center justify-center transition-all duration-200 shadow-lg pointer-events-auto ${
-              mediaObjects.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+            disabled={useHierarchicalNavigation 
+              ? (canvasGroups?.length === 1 && currentCanvasMedia.length <= 1)
+              : (mediaObjects.length <= 1)
+            }
+            className={`absolute left-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 shadow-lg pointer-events-auto border-0 outline-none ${
+              (useHierarchicalNavigation 
+                ? (canvasGroups?.length === 1 && currentCanvasMedia.length <= 1)
+                : (mediaObjects.length <= 1)) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             style={{ zIndex: 100 }}
             aria-label="Previous"
@@ -144,9 +224,14 @@ const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: Prese
           {/* Next Button - Always visible */}
           <button
             onClick={handleNext}
-            disabled={mediaObjects.length <= 1}
-            className={`absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-grey-bg-4 hover:bg-white-60 text-white flex items-center justify-center transition-all duration-200 shadow-lg pointer-events-auto ${
-              mediaObjects.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''
+            disabled={useHierarchicalNavigation 
+              ? (canvasGroups?.length === 1 && currentCanvasMedia.length <= 1)
+              : (mediaObjects.length <= 1)
+            }
+            className={`absolute right-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-button-bg text-button-text flex items-center justify-center transition-all duration-200 shadow-lg pointer-events-auto border-0 outline-none ${
+              (useHierarchicalNavigation 
+                ? (canvasGroups?.length === 1 && currentCanvasMedia.length <= 1)
+                : (mediaObjects.length <= 1)) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             style={{ zIndex: 100 }}
             aria-label="Next"
@@ -167,20 +252,32 @@ const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: Prese
           </button>
 
           {/* Counter */}
-          {totalCanvases !== undefined && totalCanvases > 0 ? (
+          {useHierarchicalNavigation && canvasGroups ? (
             <div 
-              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-grey-bg-4 bg-opacity-80 text-white font-secondary text-sm pointer-events-auto"
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-button-counter text-button-counter font-secondary text-sm pointer-events-auto"
               style={{ zIndex: 100 }}
             >
-              {Math.min(Math.floor(currentIndex / Math.max(1, Math.ceil(mediaObjects.length / totalCanvases))) + 1, totalCanvases)} / {totalCanvases}
+              <span className="text-button-counter">{currentCanvasIndex + 1} / {canvasGroups.length}</span>
+              {currentCanvasMedia.length > 1 && (
+                <span className="ml-2 text-button-counter opacity-90">
+                  • {currentMediaIndex + 1} / {currentCanvasMedia.length}
+                </span>
+              )}
+            </div>
+          ) : totalCanvases !== undefined && totalCanvases > 0 ? (
+            <div 
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-button-counter text-button-counter font-secondary text-sm pointer-events-auto"
+              style={{ zIndex: 100 }}
+            >
+              {Math.min(Math.floor(currentMediaIndex / Math.max(1, Math.ceil(mediaObjects.length / totalCanvases))) + 1, totalCanvases)} / {totalCanvases}
             </div>
           ) : (
             mediaObjects.length > 1 && (
               <div 
-                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-grey-bg-4 bg-opacity-80 text-white font-secondary text-sm pointer-events-auto"
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-button-counter text-button-counter font-secondary text-sm pointer-events-auto"
                 style={{ zIndex: 100 }}
               >
-                {currentIndex + 1} / {mediaObjects.length}
+                {currentMediaIndex + 1} / {mediaObjects.length}
               </div>
             )
           )}
