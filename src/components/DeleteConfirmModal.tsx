@@ -40,7 +40,7 @@ const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel }: DeleteConfirmModalP
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 rounded-lg bg-orange-primary text-white font-secondary font-medium hover:bg-orange-secondary transition-all duration-200 active:opacity-80"
+              className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-90 transition-all duration-200 active:opacity-80"
               style={{
                 minHeight: '44px',
               }}

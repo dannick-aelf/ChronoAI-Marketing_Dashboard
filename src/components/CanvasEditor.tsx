@@ -13,6 +13,10 @@ export interface CanvasObject {
   fontSize?: number;
   color?: string;
   fontFamily?: string;
+  dateUploaded?: string; // Date when content was uploaded
+  aspectRatio?: string; // Aspect ratio of the canvas
+  tags?: string[]; // Tags for the content
+  comments?: string; // Comments for the content
 }
 
 interface CanvasEditorProps {
@@ -22,8 +26,8 @@ interface CanvasEditorProps {
   objects: CanvasObject[];
   onObjectsChange: (objects: CanvasObject[]) => void;
   onAddImage: () => void;
-  onAddText: () => void;
   onPresent: () => void;
+  aspectRatio?: string; // Canvas aspect ratio for description
 }
 
 const CanvasEditor = ({
@@ -33,8 +37,8 @@ const CanvasEditor = ({
   objects,
   onObjectsChange,
   onAddImage,
-  onAddText,
   onPresent,
+  aspectRatio,
 }: CanvasEditorProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -183,6 +187,9 @@ const CanvasEditor = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, deleteSelected]);
 
+  // Find the media object (image or video) for description
+  const mediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
+
   return (
     <div className="relative w-full h-full group">
       {/* Canvas Area */}
@@ -201,9 +208,7 @@ const CanvasEditor = ({
         {objects.map((object) => (
           <div
             key={object.id}
-            className={`absolute cursor-move overflow-hidden ${
-              selectedId === object.id ? 'ring-2 ring-orange-primary' : ''
-            }`}
+            className="absolute cursor-move overflow-hidden group/object"
             style={{
               left: `${object.x * scale}px`,
               top: `${object.y * scale}px`,
@@ -246,8 +251,41 @@ const CanvasEditor = ({
                 {object.content || 'Text'}
               </div>
             )}
+            
           </div>
         ))}
+        
+        {/* Description Tooltip - Bottom Left, 30px from edges, only on hover */}
+        {mediaObject && (
+          <div className="absolute bottom-[30px] left-[30px] bg-grey-bg-3 text-white font-secondary text-xs p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20 max-w-[300px]">
+            <div className="space-y-1">
+              {mediaObject.dateUploaded && (
+                <div>
+                  <span className="text-white-60">Date uploaded: </span>
+                  <span>{new Date(mediaObject.dateUploaded).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                </div>
+              )}
+              {mediaObject.comments && mediaObject.comments.trim() && (
+                <div>
+                  <span className="text-white-60">Comments: </span>
+                  <span className="text-white">{mediaObject.comments}</span>
+                </div>
+              )}
+              {aspectRatio && (
+                <div>
+                  <span className="text-white-60">Aspect Ratio: </span>
+                  <span>{aspectRatio}</span>
+                </div>
+              )}
+              {mediaObject.tags && mediaObject.tags.length > 0 && (
+                <div>
+                  <span className="text-white-60">Tags: </span>
+                  <span>{mediaObject.tags.join(', ')}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Toolbar - Only visible on hover */}
@@ -267,33 +305,14 @@ const CanvasEditor = ({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-        </button>
-        <button
-          onClick={onAddText}
-          className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
-          title="Add Text"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
             />
           </svg>
         </button>
         {objects.filter((obj) => obj.type === 'image' || obj.type === 'video').length > 0 && (
           <button
             onClick={onPresent}
-            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-orange-primary text-text-primary hover:text-white border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-white text-text-primary hover:text-black border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
             title="Present (View all images/videos)"
           >
             <svg
@@ -311,10 +330,89 @@ const CanvasEditor = ({
             </svg>
           </button>
         )}
+        {(() => {
+          const mediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
+          if (!mediaObject) return null;
+
+          const handleDownload = async () => {
+            try {
+              const url = mediaObject.content;
+              
+              // Handle data URLs (base64)
+              if (url.startsWith('data:')) {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+              } else {
+                // Handle regular URLs - fetch and download
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                
+                // Try to get filename from URL
+                try {
+                  const urlPath = new URL(url).pathname;
+                  const filename = urlPath.split('/').pop() || `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                  
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = filename;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(blobUrl);
+                } catch {
+                  // If URL parsing fails, use generic filename
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = `canvas-${mediaObject.type === 'image' ? 'image' : 'video'}-${Date.now()}.${mediaObject.type === 'image' ? 'png' : 'mp4'}`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(blobUrl);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to download:', error);
+              // Fallback: open in new tab
+              window.open(mediaObject.content, '_blank');
+            }
+          };
+
+          return (
+            <button
+              onClick={handleDownload}
+              className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+              title="Download Original Image/Video"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+            </button>
+          );
+        })()}
         {selectedId && (
           <button
             onClick={deleteSelected}
-            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-orange-primary text-text-primary hover:text-white border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg bg-grey-bg-3 hover:bg-white text-text-primary hover:text-black border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
             title="Delete Selected (Del)"
           >
             <svg

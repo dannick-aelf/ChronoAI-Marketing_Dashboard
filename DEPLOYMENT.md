@@ -128,3 +128,4 @@ If you encounter issues:
 2. Some hosts require the files to be in the root - make sure you're uploading the contents of `dist/`, not the `dist/` folder itself
 3. For SPA (Single Page Application) routing issues, configure your host to redirect all routes to `index.html`
 
+

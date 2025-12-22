@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  /* Lumen Brand Colors */
-  --color-orange-primary: #FE5706;
-  --color-orange-secondary: #FFA147;
+  /* Lumen Brand Colors - Changed to white */
+  --color-orange-primary: #FFFFFF;
+  --color-orange-secondary: #E6E6E6;
   
   /* White & Grey Scale (for text and UI) */
   --color-white: #FFFFFF;
@@ -19,9 +19,9 @@
   --color-grey-bg-3: #272727;
   --color-grey-bg-4: #333333;
 
-  /* Typography */
-  --font-primary: 'Didot', serif;
-  --font-secondary: 'Space Grotesk', sans-serif;
+  /* Typography - SF Pro Display */
+  --font-primary: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+  --font-secondary: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
 
   /* Dark Mode Color Mapping */
   --color-bg-primary: var(--color-black);
@@ -119,7 +119,7 @@ p, span, div {
 
 /* Focus states for accessibility */
 *:focus-visible {
-  outline: 2px solid var(--color-orange-primary);
+  outline: 2px solid var(--color-white);
   outline-offset: 2px;
 }
 

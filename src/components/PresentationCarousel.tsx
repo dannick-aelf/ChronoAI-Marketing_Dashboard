@@ -6,10 +6,11 @@ interface PresentationCarouselProps {
   onClose: () => void;
   objects: CanvasObject[];
   initialCanvasId?: string;
+  totalCanvases?: number;
   key?: string | number;
 }
 
-const PresentationCarousel = ({ isOpen, onClose, objects }: PresentationCarouselProps) => {
+const PresentationCarousel = ({ isOpen, onClose, objects, totalCanvases }: PresentationCarouselProps) => {
   // Filter only image and video objects - memoize to prevent unnecessary recalculations
   const mediaObjects = useMemo(() => {
     return objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
@@ -166,13 +167,22 @@ const PresentationCarousel = ({ isOpen, onClose, objects }: PresentationCarousel
           </button>
 
           {/* Counter */}
-          {mediaObjects.length > 1 && (
+          {totalCanvases !== undefined && totalCanvases > 0 ? (
             <div 
               className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-grey-bg-4 bg-opacity-80 text-white font-secondary text-sm pointer-events-auto"
               style={{ zIndex: 100 }}
             >
-              {currentIndex + 1} / {mediaObjects.length}
+              {Math.min(Math.floor(currentIndex / Math.max(1, Math.ceil(mediaObjects.length / totalCanvases))) + 1, totalCanvases)} / {totalCanvases}
             </div>
+          ) : (
+            mediaObjects.length > 1 && (
+              <div 
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg bg-grey-bg-4 bg-opacity-80 text-white font-secondary text-sm pointer-events-auto"
+                style={{ zIndex: 100 }}
+              >
+                {currentIndex + 1} / {mediaObjects.length}
+              </div>
+            )
           )}
         </div>
       </div>

@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import CanvasEditor, { type CanvasObject } from './CanvasEditor';
 import ImageUploadModal from './ImageUploadModal';
-import TextEditorModal from './TextEditorModal';
 import PresentationCarousel from './PresentationCarousel';
 
 type AspectRatio = '4:5' | '9:16';
@@ -14,6 +13,7 @@ interface CanvasProps {
   onObjectsChange: (objects: CanvasObject[]) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
+  totalCanvases?: number;
 }
 
 // Canvas dimensions
@@ -22,12 +22,15 @@ const canvasSizes = {
   '9:16': { width: 1080, height: 1920 },
 } as const;
 
-const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsChange, onDelete, canDelete }: CanvasProps) => {
+const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsChange, onDelete, canDelete, totalCanvases }: CanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [showMediaModal, setShowMediaModal] = useState(false);
-  const [showTextModal, setShowTextModal] = useState(false);
   const [showPresentation, setShowPresentation] = useState(false);
+
+  const handleObjectsChangeWithTracking = (newObjects: CanvasObject[]) => {
+    onObjectsChange(newObjects);
+  };
 
   const { width: actualWidth, height: actualHeight } = canvasSizes[aspectRatio];
 
@@ -91,35 +94,41 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
 
   const scale = dimensions.width > 0 ? dimensions.width / actualWidth : 0;
 
-  const handleAddMedia = (url: string, type: 'image' | 'video') => {
-    // Calculate dimensions to fill the entire canvas
-    const newObject: CanvasObject = {
-      id: `${type}-${Date.now()}`,
-      type,
-      x: 0,
-      y: 0,
-      width: actualWidth,
-      height: actualHeight,
-      content: url,
-    };
-    onObjectsChange([...objects, newObject]);
+  const handleAddMedia = (url: string, type: 'image' | 'video', tags?: string[], comments?: string) => {
+    const existingMediaObject = objects.find(obj => obj.type === 'image' || obj.type === 'video');
+    
+    if (existingMediaObject) {
+      // Update existing media object
+      const updatedObject: CanvasObject = {
+        ...existingMediaObject,
+        content: url,
+        type,
+        tags: tags,
+        comments: comments,
+        aspectRatio: aspectRatio,
+        // Preserve dateUploaded if it exists, otherwise set it
+        dateUploaded: existingMediaObject.dateUploaded || new Date().toISOString(),
+      };
+      onObjectsChange(objects.map(obj => obj.id === existingMediaObject.id ? updatedObject : obj));
+    } else {
+      // Create new media object
+      const newObject: CanvasObject = {
+        id: `${type}-${Date.now()}`,
+        type,
+        x: 0,
+        y: 0,
+        width: actualWidth,
+        height: actualHeight,
+        content: url,
+        dateUploaded: new Date().toISOString(),
+        aspectRatio: aspectRatio,
+        tags: tags,
+        comments: comments,
+      };
+      onObjectsChange([...objects, newObject]);
+    }
   };
 
-  const handleAddText = (text: string, fontSize: number, color: string, fontFamily: string) => {
-    const newObject: CanvasObject = {
-      id: `text-${Date.now()}`,
-      type: 'text',
-      x: 100,
-      y: 100,
-      width: 200,
-      height: fontSize * 1.5,
-      content: text,
-      fontSize,
-      color,
-      fontFamily,
-    };
-    onObjectsChange([...objects, newObject]);
-  };
 
   return (
     <div ref={wrapperRef} className="relative w-full" style={{ minHeight: '1px' }}>
@@ -163,16 +172,16 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
         {/* Canvas Editor */}
         {dimensions.width > 0 && scale > 0 ? (
           <div className="absolute inset-0 w-full h-full">
-            <CanvasEditor
-              width={actualWidth}
-              height={actualHeight}
-              scale={scale}
-              objects={objects}
-              onObjectsChange={onObjectsChange}
-              onAddImage={() => setShowMediaModal(true)}
-              onAddText={() => setShowTextModal(true)}
-              onPresent={() => setShowPresentation(true)}
-            />
+              <CanvasEditor
+                width={actualWidth}
+                height={actualHeight}
+                scale={scale}
+                objects={objects}
+                onObjectsChange={handleObjectsChangeWithTracking}
+                onAddImage={() => setShowMediaModal(true)}
+                onPresent={() => setShowPresentation(true)}
+                aspectRatio={aspectRatio}
+              />
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -205,12 +214,10 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
         onConfirm={handleAddMedia}
         initialMediaUrl={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.content}
         initialMediaType={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.type as 'image' | 'video' | undefined}
-      />
-      <TextEditorModal
-        key={showTextModal ? 'open' : 'closed'}
-        isOpen={showTextModal}
-        onClose={() => setShowTextModal(false)}
-        onConfirm={handleAddText}
+        initialTags={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.tags}
+        initialComments={objects.find(obj => obj.type === 'image' || obj.type === 'video')?.comments}
+        aspectRatio={aspectRatio}
+        allowMultiple={false}
       />
       <PresentationCarousel
         key={showPresentation ? 'open' : 'closed'}
@@ -218,6 +225,7 @@ const Canvas = ({ aspectRatio, canvasId, objects, allCategoryObjects, onObjectsC
         onClose={() => setShowPresentation(false)}
         objects={allCategoryObjects}
         initialCanvasId={canvasId}
+        totalCanvases={totalCanvases}
       />
 
     </div>
