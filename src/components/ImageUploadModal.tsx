@@ -334,7 +334,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
               onClick={() => fileInputRef.current?.click()}
               className="w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary font-secondary transition-all duration-200"
             >
-              <span className="font-bold">{allowMultiple ? 'Choose Files (Image or Video)' : 'Choose File (Image or Video)'}</span>
+              {allowMultiple ? 'Choose Files (Image or Video)' : 'Choose File (Image or Video)'}
             </button>
           </div>
 
@@ -446,7 +446,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
           <div className="flex gap-3 justify-end">
             <button
               onClick={handleClose}
-              className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary font-medium hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
+              className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
               style={{ minHeight: '44px' }}
             >
               Cancel
@@ -454,7 +454,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
             {selectedFiles.length > 0 ? (
               <button
                 onClick={handleConfirmMultiple}
-                className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-80 transition-all duration-200 active:opacity-80"
+                className="px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80"
                 style={{ minHeight: '44px' }}
               >
                 {initialFiles && initialFiles.length > 0 ? 'Save' : 'Add'} {selectedFiles.length} {selectedFiles.length === 1 ? 'File' : 'Files'}
@@ -462,7 +462,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
             ) : (
               <button
                 onClick={mediaUrl ? handleUrlSubmit : () => setError('Please select a file')}
-                className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-80 transition-all duration-200 active:opacity-80"
+                className="px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80"
                 style={{ minHeight: '44px' }}
               >
                 {initialMediaUrl ? 'Save' : 'Add'}

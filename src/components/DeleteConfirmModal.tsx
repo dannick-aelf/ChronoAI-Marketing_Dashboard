@@ -36,7 +36,7 @@ const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel, count = 1 }: DeleteCo
           <div className="flex gap-3 justify-end">
             <button
               onClick={onCancel}
-              className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary font-medium hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
+              className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
               style={{
                 minHeight: '44px',
               }}
@@ -45,7 +45,7 @@ const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel, count = 1 }: DeleteCo
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-90 transition-all duration-200 active:opacity-80"
+              className="px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-90 transition-all duration-200 active:opacity-80"
               style={{
                 minHeight: '44px',
               }}

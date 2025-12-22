@@ -459,7 +459,7 @@ const Dashboard = () => {
                   flex-1 px-3 py-2 rounded-lg text-sm font-secondary transition-all duration-200
                   ${
                     selectedTab === tab.id
-                      ? 'bg-grey-bg-3 text-text-primary font-medium'
+                      ? 'bg-grey-bg-3 text-text-primary'
                       : 'text-text-secondary hover:bg-grey-bg-3 hover:text-text-primary'
                   }
                   active:opacity-80 active:scale-[0.98]
@@ -710,7 +710,7 @@ const Dashboard = () => {
                   w-full text-left px-4 py-3 rounded-lg transition-all duration-200 font-secondary
                   ${
                     selectedCategory === category.id
-                      ? 'bg-grey-bg-3 text-text-primary font-medium'
+                      ? 'bg-grey-bg-3 text-text-primary'
                       : 'text-text-secondary hover:bg-grey-bg-3 hover:text-text-primary'
                   }
                   active:opacity-80 active:scale-[0.98]
@@ -1191,7 +1191,7 @@ const Dashboard = () => {
                     setTagsToAdd([]);
                     setTagInput('');
                   }}
-                  className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary font-medium hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
+                  className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
                   style={{ minHeight: '44px' }}
                 >
                   Cancel
@@ -1199,7 +1199,7 @@ const Dashboard = () => {
                 <button
                   onClick={handleBulkAddTags}
                   disabled={tagsToAdd.length === 0}
-                  className={`px-4 py-2 rounded-lg bg-white text-black font-secondary font-medium hover:bg-white-90 transition-all duration-200 active:opacity-80 ${
+                  className={`px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-90 transition-all duration-200 active:opacity-80 ${
                     tagsToAdd.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   style={{ minHeight: '44px' }}
