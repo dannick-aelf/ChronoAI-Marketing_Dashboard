@@ -1,3 +1,144 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+:root {
+  /* Lumen Brand Colors */
+  --color-orange-primary: #FE5706;
+  --color-orange-secondary: #FFA147;
+  
+  /* White & Grey Scale (for text and UI) */
+  --color-white: #FFFFFF;
+  --color-white-90: #E6E6E6;
+  --color-white-80: #CCCCCC;
+  --color-white-60: #999999;
+  --color-white-40: #666666;
+  
+  /* Dark Backgrounds */
+  --color-black: #010100;
+  --color-grey-bg-1: #0F0F0F;
+  --color-grey-bg-2: #1A1A1A;
+  --color-grey-bg-3: #272727;
+  --color-grey-bg-4: #333333;
+
+  /* Typography */
+  --font-primary: 'Didot', serif;
+  --font-secondary: 'Space Grotesk', sans-serif;
+
+  /* Dark Mode Color Mapping */
+  --color-bg-primary: var(--color-black);
+  --color-bg-secondary: var(--color-grey-bg-1);
+  --color-bg-tertiary: var(--color-grey-bg-2);
+  --color-bg-surface: var(--color-grey-bg-2);
+  --color-bg-elevated: var(--color-grey-bg-3);
+  
+  /* Text Colors for Dark Mode (strict legibility) */
+  --color-text-primary: var(--color-white);
+  --color-text-secondary: var(--color-white-90);
+  --color-text-muted: var(--color-white-60);
+  --color-text-placeholder: var(--color-white-40);
+  
+  /* Border Colors */
+  --color-border-light: var(--color-grey-bg-3);
+  --color-border: var(--color-grey-bg-4);
+  --color-border-dark: var(--color-white-40);
+}
+
+/* Custom utility classes */
+.bg-bg-primary { background-color: var(--color-bg-primary); }
+.bg-bg-secondary { background-color: var(--color-bg-secondary); }
+.bg-bg-tertiary { background-color: var(--color-bg-tertiary); }
+.bg-bg-surface { background-color: var(--color-bg-surface); }
+.bg-bg-elevated { background-color: var(--color-bg-elevated); }
+
+.text-text-primary { color: var(--color-text-primary); }
+.text-text-secondary { color: var(--color-text-secondary); }
+.text-text-muted { color: var(--color-text-muted); }
+.text-text-placeholder { color: var(--color-text-placeholder); }
+
+.border-border-light { border-color: var(--color-border-light); }
+.border-border { border-color: var(--color-border); }
+.border-border-dark { border-color: var(--color-border-dark); }
+
+/* Lumen Brand Colors */
+.bg-orange-primary { background-color: var(--color-orange-primary); }
+.bg-orange-secondary { background-color: var(--color-orange-secondary); }
+.text-orange-primary { color: var(--color-orange-primary); }
+.text-orange-secondary { color: var(--color-orange-secondary); }
+
+/* Grey Background Utilities */
+.bg-grey-bg-1 { background-color: var(--color-grey-bg-1); }
+.bg-grey-bg-2 { background-color: var(--color-grey-bg-2); }
+.bg-grey-bg-3 { background-color: var(--color-grey-bg-3); }
+.bg-grey-bg-4 { background-color: var(--color-grey-bg-4); }
+
+/* White Scale Utilities */
+.bg-white-90 { background-color: var(--color-white-90); }
+.bg-white-80 { background-color: var(--color-white-80); }
+.bg-white-60 { background-color: var(--color-white-60); }
+.bg-white-40 { background-color: var(--color-white-40); }
+.text-white-90 { color: var(--color-white-90); }
+.text-white-80 { color: var(--color-white-80); }
+.text-white-60 { color: var(--color-white-60); }
+.text-white-40 { color: var(--color-white-40); }
+
+/* Typography Utilities */
+.font-primary { font-family: var(--font-primary); }
+.font-secondary { font-family: var(--font-secondary); }
+
+.shadow-elevated { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+
+html {
+  height: 100%;
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Ensure minimum contrast ratios for accessibility */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-primary);
+  font-family: var(--font-primary);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+p, span, div {
+  color: var(--color-text-primary);
+  font-family: var(--font-secondary);
+  line-height: 1.5;
+}
+
+/* Focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-orange-primary);
+  outline-offset: 2px;
+}
+
+/* Ensure video and image elements fill their containers completely */
+video,
+img {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  vertical-align: top;
+}
+
+/* Hide scrollbar but keep scrolling functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
