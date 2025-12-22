@@ -95,6 +95,7 @@
   --color-active-indicator-shadow: rgba(255, 255, 255, 0.8);
   --color-descriptor-label: rgba(255, 255, 255, 0.6); /* Light grey for labels */
   --color-descriptor-content: #FFFFFF; /* White for content */
+  --color-divider: var(--color-border); /* Light divider for dark mode */
 }
 
 [data-theme="light"] {
@@ -109,6 +110,7 @@
   --color-active-indicator-shadow: rgba(0, 0, 0, 0.2); /* Darker shadow for light mode */
   --color-descriptor-label: rgba(255, 255, 255, 0.6); /* Light grey for labels in light mode */
   --color-descriptor-content: #FFFFFF; /* White for content in light mode */
+  --color-divider: var(--color-border-dark); /* Dark divider for light mode */
 }
 
 /* Button Utility Classes */
@@ -148,6 +150,11 @@
 }
 .text-descriptor-content {
   color: var(--color-descriptor-content);
+}
+
+/* Divider Utility Classes */
+.bg-divider {
+  background-color: var(--color-divider);
 }
 
 /* Custom utility classes */

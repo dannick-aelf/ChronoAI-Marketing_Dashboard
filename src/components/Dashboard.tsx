@@ -1144,9 +1144,12 @@ const Dashboard = () => {
               className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-md w-full p-6 relative z-[101]"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-primary text-text-primary mb-4">
+              <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
                 Add Tags to {selectedCanvases.size} {selectedCanvases.size === 1 ? 'Canvas' : 'Canvases'}
               </h3>
+              
+              {/* Divider */}
+              <div className="border-b border-border mb-4 -mx-6" style={{ width: 'calc(100% + 3rem)' }}></div>
               
               <div className="mb-4">
                 <label className="block text-sm font-secondary text-text-secondary mb-2">

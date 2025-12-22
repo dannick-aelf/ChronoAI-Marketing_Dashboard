@@ -311,9 +311,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
           className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6 my-auto max-h-[90vh] overflow-y-auto relative z-[101]"
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-xl font-primary text-text-primary mb-4">
+          <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
             Add Image or Video
           </h3>
+          
+          {/* Divider */}
+          <div className="border-b border-border mb-4 -mx-6" style={{ width: 'calc(100% + 3rem)' }}></div>
 
           <div className="mb-4">
             <label className="block text-sm font-secondary text-text-secondary mb-2">
@@ -331,7 +334,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
               onClick={() => fileInputRef.current?.click()}
               className="w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary font-secondary transition-all duration-200"
             >
-              {allowMultiple ? 'Choose Files (Image or Video)' : 'Choose File (Image or Video)'}
+              <span className="font-bold">{allowMultiple ? 'Choose Files (Image or Video)' : 'Choose File (Image or Video)'}</span>
             </button>
           </div>
 

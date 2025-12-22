@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import JSZip from 'jszip';
 
 export type CanvasObjectType = 'image' | 'video' | 'text';
 
@@ -511,12 +512,86 @@ const CanvasEditor = ({
               // Single file - download immediately
               await downloadSingleFile(mediaObjects[0], 0);
             } else {
-              // Multiple files - download all sequentially with small delay
-              for (let i = 0; i < mediaObjects.length; i++) {
-                await downloadSingleFile(mediaObjects[i], i);
-                // Small delay between downloads to prevent browser blocking
-                if (i < mediaObjects.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 300));
+              // Multiple files - zip all files together
+              try {
+                const zip = new JSZip();
+                
+                // Fetch all files and add them to the ZIP
+                for (let i = 0; i < mediaObjects.length; i++) {
+                  const mediaObject = mediaObjects[i];
+                  const url = mediaObject.content;
+                  
+                  if (!url) {
+                    console.warn(`Media object ${i + 1} has no content URL`);
+                    continue;
+                  }
+                  
+                  try {
+                    let blob: Blob;
+                    if (url.startsWith('data:')) {
+                      // Handle data URLs (base64)
+                      const response = await fetch(url);
+                      if (!response.ok) {
+                        throw new Error(`Failed to fetch data URL: ${response.statusText}`);
+                      }
+                      blob = await response.blob();
+                    } else {
+                      // Handle regular URLs
+                      const response = await fetch(url);
+                      if (!response.ok) {
+                        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+                      }
+                      blob = await response.blob();
+                    }
+                    
+                    // Determine filename
+                    const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
+                    let filename = `${mediaObject.type}-${i + 1}.${extension}`;
+                    
+                    // Try to extract filename from URL if it's not a data URL
+                    if (!url.startsWith('data:')) {
+                      try {
+                        const urlPath = new URL(url).pathname;
+                        const originalFilename = urlPath.split('/').pop() || '';
+                        if (originalFilename && originalFilename.includes('.')) {
+                          filename = originalFilename;
+                        }
+                      } catch {
+                        // Use default filename
+                      }
+                    }
+                    
+                    // Add file to ZIP root (no folders)
+                    zip.file(filename, blob);
+                  } catch (error) {
+                    console.error(`Failed to fetch file ${i + 1}:`, error);
+                    // Continue with other files even if one fails
+                  }
+                }
+                
+                // Generate ZIP file
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                
+                // Download the ZIP file
+                const zipUrl = window.URL.createObjectURL(zipBlob);
+                const link = document.createElement('a');
+                link.href = zipUrl;
+                link.download = `canvas-${Date.now()}.zip`;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Clean up
+                setTimeout(() => window.URL.revokeObjectURL(zipUrl), 100);
+              } catch (error) {
+                console.error('Error creating ZIP file:', error);
+                // Fallback: download files sequentially
+                for (let i = 0; i < mediaObjects.length; i++) {
+                  await downloadSingleFile(mediaObjects[i], i);
+                  if (i < mediaObjects.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                  }
                 }
               }
             }
@@ -526,7 +601,7 @@ const CanvasEditor = ({
             <button
               onClick={handleDownload}
               className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
-              title={mediaObjects.length > 1 ? `Download All ${mediaObjects.length} Files` : 'Download Original Image/Video'}
+              title={mediaObjects.length > 1 ? `Download All ${mediaObjects.length} Files as ZIP` : 'Download Original Image/Video'}
             >
               <svg
                 className="w-5 h-5"

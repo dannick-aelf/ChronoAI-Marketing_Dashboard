@@ -22,9 +22,13 @@ const DeleteConfirmModal = ({ isOpen, onConfirm, onCancel, count = 1 }: DeleteCo
           className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-md w-full p-6"
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-xl font-primary text-text-primary mb-2">
+          <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
             Delete {count > 1 ? `${count} Canvases` : 'Canvas'}
           </h3>
+          
+          {/* Divider */}
+          <div className="border-b border-border mb-4 -mx-6" style={{ width: 'calc(100% + 3rem)' }}></div>
+          
           <p className="text-text-secondary font-secondary mb-6">
             Are you sure you want to delete {count > 1 ? `these ${count} canvases` : 'this canvas'}? This action cannot be undone.
           </p>
