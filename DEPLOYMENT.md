@@ -129,3 +129,4 @@ If you encounter issues:
 3. For SPA (Single Page Application) routing issues, configure your host to redirect all routes to `index.html`
 
 
+

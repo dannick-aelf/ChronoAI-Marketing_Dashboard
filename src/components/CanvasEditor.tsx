@@ -28,7 +28,6 @@ interface CanvasEditorProps {
   onObjectsChange: (objects: CanvasObject[]) => void;
   onAddImage: () => void;
   onPresent: () => void;
-  aspectRatio?: string; // Canvas aspect ratio for description
   isSelected?: boolean;
   onToggleSelection?: () => void;
 }
@@ -41,7 +40,6 @@ const CanvasEditor = ({
   onObjectsChange,
   onAddImage,
   onPresent,
-  aspectRatio,
   isSelected,
   onToggleSelection,
 }: CanvasEditorProps) => {
@@ -174,24 +172,6 @@ const CanvasEditor = ({
     }
   };
 
-  const deleteSelected = useCallback(() => {
-    if (selectedId) {
-      onObjectsChange(objects.filter((obj) => obj.id !== selectedId));
-      setSelectedId(null);
-    }
-  }, [selectedId, objects, onObjectsChange]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        e.preventDefault();
-        deleteSelected();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, deleteSelected]);
 
   // Find all media objects (images or videos) for carousel
   const mediaObjects = objects.filter(obj => obj.type === 'image' || obj.type === 'video');
@@ -367,7 +347,7 @@ const CanvasEditor = ({
                   <span className="text-descriptor-content">{mediaObject.comments}</span>
                 </div>
               )}
-              {mediaObject.tags && mediaObject.tags.length > 0 && (
+              {mediaObject.tags && Array.isArray(mediaObject.tags) && mediaObject.tags.length > 0 && (
                 <div>
                   <span className="text-descriptor-label">Tags: </span>
                   <span className="text-descriptor-content">{mediaObject.tags.join(', ')}</span>
@@ -454,7 +434,6 @@ const CanvasEditor = ({
             try {
               const url = mediaObject.content;
               
-              // Handle data URLs (base64)
               if (url.startsWith('data:')) {
                 const response = await fetch(url);
                 const blob = await response.blob();
@@ -469,12 +448,10 @@ const CanvasEditor = ({
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(blobUrl);
               } else {
-                // Handle regular URLs - fetch and download
                 const response = await fetch(url);
                 const blob = await response.blob();
                 const blobUrl = window.URL.createObjectURL(blob);
                 
-                // Try to get filename from URL
                 try {
                   const urlPath = new URL(url).pathname;
                   const originalFilename = urlPath.split('/').pop() || '';
@@ -489,7 +466,6 @@ const CanvasEditor = ({
                   document.body.removeChild(link);
                   window.URL.revokeObjectURL(blobUrl);
                 } catch {
-                  // If URL parsing fails, use generic filename
                   const link = document.createElement('a');
                   link.href = blobUrl;
                   const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
@@ -502,7 +478,6 @@ const CanvasEditor = ({
               }
             } catch (error) {
               console.error(`Failed to download file ${index + 1}:`, error);
-              // Fallback: open in new tab
               window.open(mediaObject.content, '_blank');
             }
           };
@@ -521,22 +496,17 @@ const CanvasEditor = ({
                   const mediaObject = mediaObjects[i];
                   const url = mediaObject.content;
                   
-                  if (!url) {
-                    console.warn(`Media object ${i + 1} has no content URL`);
-                    continue;
-                  }
+                  if (!url) continue;
                   
                   try {
                     let blob: Blob;
                     if (url.startsWith('data:')) {
-                      // Handle data URLs (base64)
                       const response = await fetch(url);
                       if (!response.ok) {
                         throw new Error(`Failed to fetch data URL: ${response.statusText}`);
                       }
                       blob = await response.blob();
                     } else {
-                      // Handle regular URLs
                       const response = await fetch(url);
                       if (!response.ok) {
                         throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
@@ -544,11 +514,9 @@ const CanvasEditor = ({
                       blob = await response.blob();
                     }
                     
-                    // Determine filename
                     const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
                     let filename = `${mediaObject.type}-${i + 1}.${extension}`;
                     
-                    // Try to extract filename from URL if it's not a data URL
                     if (!url.startsWith('data:')) {
                       try {
                         const urlPath = new URL(url).pathname;
@@ -557,22 +525,17 @@ const CanvasEditor = ({
                           filename = originalFilename;
                         }
                       } catch {
-                        // Use default filename
+                        // Fallback to default filename
                       }
                     }
                     
-                    // Add file to ZIP root (no folders)
                     zip.file(filename, blob);
                   } catch (error) {
                     console.error(`Failed to fetch file ${i + 1}:`, error);
-                    // Continue with other files even if one fails
                   }
                 }
                 
-                // Generate ZIP file
                 const zipBlob = await zip.generateAsync({ type: 'blob' });
-                
-                // Download the ZIP file
                 const zipUrl = window.URL.createObjectURL(zipBlob);
                 const link = document.createElement('a');
                 link.href = zipUrl;
@@ -581,12 +544,9 @@ const CanvasEditor = ({
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
-                // Clean up
                 setTimeout(() => window.URL.revokeObjectURL(zipUrl), 100);
               } catch (error) {
                 console.error('Error creating ZIP file:', error);
-                // Fallback: download files sequentially
                 for (let i = 0; i < mediaObjects.length; i++) {
                   await downloadSingleFile(mediaObjects[i], i);
                   if (i < mediaObjects.length - 1) {
@@ -619,27 +579,6 @@ const CanvasEditor = ({
             </button>
           );
         })()}
-        {selectedId && (
-          <button
-            onClick={deleteSelected}
-            className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
-            title="Delete Selected (Del)"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   );

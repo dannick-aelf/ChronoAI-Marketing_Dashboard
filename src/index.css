@@ -253,3 +253,34 @@ img {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* Skeleton Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-grey-bg-3) 0%,
+    var(--color-grey-bg-4) 50%,
+    var(--color-grey-bg-3) 100%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+[data-theme="light"] .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-grey-bg-3) 0%,
+    var(--color-grey-bg-2) 50%,
+    var(--color-grey-bg-3) 100%
+  );
+  background-size: 2000px 100%;
+}

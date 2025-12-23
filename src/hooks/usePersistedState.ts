@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { storageService } from '../services/storage/indexedDB';
 import type { StoredCanvases, StoredCanvasObjects } from '../services/storage/types';
 
-export const usePersistedCanvases = (initialValue: StoredCanvases) => {
+export const usePersistedCanvases = (initialValue: StoredCanvases, tab?: string) => {
   const [canvases, setCanvases] = useState<StoredCanvases>(initialValue);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -12,7 +12,7 @@ export const usePersistedCanvases = (initialValue: StoredCanvases) => {
   useEffect(() => {
     const loadCanvases = async () => {
       try {
-        const stored = await storageService.loadCanvases();
+        const stored = await storageService.loadCanvases(tab);
         if (stored) {
           setCanvases(stored);
         }
@@ -23,16 +23,16 @@ export const usePersistedCanvases = (initialValue: StoredCanvases) => {
       }
     };
     loadCanvases();
-  }, []);
+  }, [tab]);
 
   // Save to IndexedDB whenever canvases change
   useEffect(() => {
     if (!isLoading) {
-      storageService.saveCanvases(canvases).catch((error: unknown) => {
+      storageService.saveCanvases(canvases, tab).catch((error: unknown) => {
         console.error('Failed to save canvases:', error);
       });
     }
-  }, [canvases, isLoading]);
+  }, [canvases, isLoading, tab]);
 
   const updateCanvases = useCallback((updater: (prev: StoredCanvases) => StoredCanvases) => {
     setCanvases(updater);
@@ -41,7 +41,7 @@ export const usePersistedCanvases = (initialValue: StoredCanvases) => {
   return [canvases, updateCanvases, isLoading] as const;
 };
 
-export const usePersistedCanvasObjects = (initialValue: StoredCanvasObjects) => {
+export const usePersistedCanvasObjects = (initialValue: StoredCanvasObjects, tab?: string) => {
   const [canvasObjects, setCanvasObjects] = useState<StoredCanvasObjects>(initialValue);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,7 +49,7 @@ export const usePersistedCanvasObjects = (initialValue: StoredCanvasObjects) => 
   useEffect(() => {
     const loadCanvasObjects = async () => {
       try {
-        const stored = await storageService.loadCanvasObjects();
+        const stored = await storageService.loadCanvasObjects(tab);
         if (stored) {
           setCanvasObjects(stored);
         }
@@ -60,16 +60,16 @@ export const usePersistedCanvasObjects = (initialValue: StoredCanvasObjects) => 
       }
     };
     loadCanvasObjects();
-  }, []);
+  }, [tab]);
 
   // Save to IndexedDB whenever canvasObjects change
   useEffect(() => {
     if (!isLoading) {
-      storageService.saveCanvasObjects(canvasObjects).catch((error: unknown) => {
+      storageService.saveCanvasObjects(canvasObjects, tab).catch((error: unknown) => {
         console.error('Failed to save canvas objects:', error);
       });
     }
-  }, [canvasObjects, isLoading]);
+  }, [canvasObjects, isLoading, tab]);
 
   const updateCanvasObjects = useCallback((updater: (prev: StoredCanvasObjects) => StoredCanvasObjects) => {
     setCanvasObjects(updater);

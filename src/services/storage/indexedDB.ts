@@ -9,13 +9,13 @@ import {
 import type { StoredCanvases, StoredCanvasObjects } from './types';
 
 export const storageService = {
-  // Canvas operations
-  async saveCanvases(canvases: StoredCanvases): Promise<void> {
-    await dbSaveCanvases(canvases);
+  // Canvas operations with tab support
+  async saveCanvases(canvases: StoredCanvases, tab?: string): Promise<void> {
+    await dbSaveCanvases(canvases, tab);
   },
 
-  async loadCanvases(): Promise<StoredCanvases | undefined> {
-    const result = await dbGetCanvases();
+  async loadCanvases(tab?: string): Promise<StoredCanvases | undefined> {
+    const result = await dbGetCanvases(tab);
     // Type guard to ensure result matches StoredCanvases structure
     if (result && '4:5' in result && '9:16' in result) {
       return result as StoredCanvases;
@@ -23,13 +23,13 @@ export const storageService = {
     return undefined;
   },
 
-  // Canvas objects operations
-  async saveCanvasObjects(canvasObjects: StoredCanvasObjects): Promise<void> {
-    await dbSaveCanvasObjects(canvasObjects);
+  // Canvas objects operations with tab support
+  async saveCanvasObjects(canvasObjects: StoredCanvasObjects, tab?: string): Promise<void> {
+    await dbSaveCanvasObjects(canvasObjects, tab);
   },
 
-  async loadCanvasObjects(): Promise<StoredCanvasObjects | undefined> {
-    return await dbGetCanvasObjects();
+  async loadCanvasObjects(tab?: string): Promise<StoredCanvasObjects | undefined> {
+    return await dbGetCanvasObjects(tab);
   },
 };
 

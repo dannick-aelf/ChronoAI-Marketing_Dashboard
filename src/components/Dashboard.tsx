@@ -3,50 +3,93 @@ import JSZip from 'jszip';
 import Canvas from './Canvas';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import ImageUploadModal from './ImageUploadModal';
+import { SkeletonDashboard } from './Skeleton';
 import { type CanvasObject } from './CanvasEditor';
 import { usePersistedCanvases, usePersistedCanvasObjects } from '../hooks/usePersistedState';
+import { storageService } from '../services/storage/indexedDB';
 import type { CanvasItem } from '../services/storage/types';
 
 type Category = '4:5' | '9:16';
 type TabType = 'GodGPT' | 'Lumen';
 
 const Dashboard = () => {
-  // UI state (temporary) - stays as useState
   const [selectedTab, setSelectedTab] = useState<TabType>('Lumen');
   const [selectedCategory, setSelectedCategory] = useState<Category>('4:5');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; canvasId: string | null }>({
-    isOpen: false,
-    canvasId: null,
-  });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedCanvases, setSelectedCanvases] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showAddTagsModal, setShowAddTagsModal] = useState(false);
   const [tagsToAdd, setTagsToAdd] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; canvasId: string | null }>({
+    isOpen: false,
+    canvasId: null,
+  });
   
-  // Theme state - persisted in localStorage
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'dark';
   });
 
-  // Apply theme to document root
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Persisted state (survives refresh) - uses IndexedDB
-  const [canvases, setCanvases, canvasesLoading] = usePersistedCanvases({
+  const [lumenCanvases, setLumenCanvases, lumenCanvasesLoading] = usePersistedCanvases({
     '4:5': [{ id: 'canvas-1', aspectRatio: '4:5' }],
     '9:16': [{ id: 'canvas-1', aspectRatio: '9:16' }],
-  });
-  const [canvasObjects, setCanvasObjects, canvasObjectsLoading] = usePersistedCanvasObjects({});
+  }, 'Lumen');
+  const [lumenCanvasObjects, setLumenCanvasObjects, lumenCanvasObjectsLoading] = usePersistedCanvasObjects({}, 'Lumen');
+  
+  const [godgptCanvases, setGodgptCanvases, godgptCanvasesLoading] = usePersistedCanvases({
+    '4:5': [{ id: 'canvas-1', aspectRatio: '4:5' }],
+    '9:16': [{ id: 'canvas-1', aspectRatio: '9:16' }],
+  }, 'GodGPT');
+  const [godgptCanvasObjects, setGodgptCanvasObjects, godgptCanvasObjectsLoading] = usePersistedCanvasObjects({}, 'GodGPT');
+
+  useEffect(() => {
+    const migrateData = async () => {
+      try {
+        const lumenData = await storageService.loadCanvases('Lumen');
+        if (!lumenData) {
+          const oldData = await storageService.loadCanvases();
+          if (oldData && ('4:5' in oldData || '9:16' in oldData)) {
+            await storageService.saveCanvases(oldData, 'Lumen');
+            const oldObjects = await storageService.loadCanvasObjects();
+            if (oldObjects) {
+              await storageService.saveCanvasObjects(oldObjects, 'Lumen');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error during data migration:', error);
+      }
+    };
+    migrateData();
+  }, []);
+
+  useEffect(() => {
+    setSelectedCanvases(new Set());
+    setSearchQuery('');
+    setSelectedTags(new Set());
+    setShowTagDropdown(false);
+    setShowDateDropdown(false);
+    setShowProductDropdown(false);
+  }, [selectedTab]);
+
+  const canvases = selectedTab === 'Lumen' ? lumenCanvases : godgptCanvases;
+  const setCanvases = selectedTab === 'Lumen' ? setLumenCanvases : setGodgptCanvases;
+  const canvasesLoading = selectedTab === 'Lumen' ? lumenCanvasesLoading : godgptCanvasesLoading;
+  const canvasObjects = selectedTab === 'Lumen' ? lumenCanvasObjects : godgptCanvasObjects;
+  const setCanvasObjects = selectedTab === 'Lumen' ? setLumenCanvasObjects : setGodgptCanvasObjects;
+  const canvasObjectsLoading = selectedTab === 'Lumen' ? lumenCanvasObjectsLoading : godgptCanvasObjectsLoading;
 
   const categories: { id: Category; label: string; ratio: string }[] = [
     { id: '4:5', label: '4:5', ratio: '4:5' },
@@ -57,8 +100,6 @@ const Dashboard = () => {
     { id: 'GodGPT', label: 'GodGPT' },
     { id: 'Lumen', label: 'Lumen' },
   ];
-
-  // addCanvas function removed - now using upload modal with multiple file support
 
   const handleMultipleUploads = (files: Array<{ url: string; type: 'image' | 'video'; tags?: string[]; comments?: string }>) => {
     const baseTime = Date.now();
@@ -74,7 +115,6 @@ const Dashboard = () => {
       };
     });
 
-    // Create objects for each canvas
     files.forEach((file, index) => {
       const canvasId = newCanvases[index].id;
       const canvasKey = getCanvasKey(selectedCategory, canvasId);
@@ -115,8 +155,8 @@ const Dashboard = () => {
     });
   };
 
+
   const handleDeleteClick = (canvasId: string) => {
-    // Open confirmation modal
     setDeleteModal({ isOpen: true, canvasId });
   };
 
@@ -135,135 +175,73 @@ const Dashboard = () => {
   const handleSelectAll = () => {
     const currentCanvases = canvases[selectedCategory];
     if (selectedCanvases.size === currentCanvases.length) {
-      // Deselect all
       setSelectedCanvases(new Set());
     } else {
-      // Select all
       setSelectedCanvases(new Set(currentCanvases.map(c => c.id)));
     }
   };
 
-  const handleBulkDelete = () => {
-    if (selectedCanvases.size === 0) return;
 
-    // Open confirmation modal for bulk delete
-    setDeleteModal({ isOpen: true, canvasId: null });
-  };
-
-  const confirmBulkDelete = () => {
-    if (selectedCanvases.size === 0) {
-      setDeleteModal({ isOpen: false, canvasId: null });
-      return;
-    }
-
-    setCanvases((prev) => {
-      return {
-        ...prev,
-        [selectedCategory]: prev[selectedCategory].filter(
-          (canvas) => !selectedCanvases.has(canvas.id)
-        ),
-      };
-    });
-
-    // Remove objects for deleted canvases
-    setCanvasObjects((prev) => {
-      const updated = { ...prev };
-      selectedCanvases.forEach((canvasId) => {
-        const canvasKey = getCanvasKey(selectedCategory, canvasId);
-        delete updated[canvasKey];
-      });
-      return updated;
-    });
-
-    setSelectedCanvases(new Set());
-    setDeleteModal({ isOpen: false, canvasId: null });
-  };
 
   const handleBulkDownload = async () => {
-    if (selectedCanvases.size === 0) {
-      console.warn('No canvases selected for download');
-      return;
-    }
-
-    if (isDownloading) {
-      console.log('Download already in progress');
-      return;
-    }
+    if (selectedCanvases.size === 0) return;
+    if (isDownloading) return;
 
     setIsDownloading(true);
-    console.log(`Starting bulk download for ${selectedCanvases.size} canvas(es)`);
     
     try {
       const selectedArray = Array.from(selectedCanvases);
       const zip = new JSZip();
       const allFiles: Array<{ url: string; filename: string; canvasId: string }> = [];
 
-      // First, collect all files to download
       for (const canvasId of selectedArray) {
         const canvasKey = getCanvasKey(selectedCategory, canvasId);
         const objects = canvasObjects[canvasKey] || [];
         const mediaObjects = objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
         
-        console.log(`Collecting files from canvas ${canvasId} with ${mediaObjects.length} media file(s)`);
-        
         for (let i = 0; i < mediaObjects.length; i++) {
           const mediaObject = mediaObjects[i];
           const url = mediaObject.content;
           
-          if (!url) {
-            console.warn(`Media object ${i + 1} in canvas ${canvasId} has no content URL`);
-            continue;
-          }
+          if (!url) continue;
           
           const extension = mediaObject.type === 'image' ? 'png' : 'mp4';
           let filename = `${canvasId}-${mediaObject.type}-${i + 1}.${extension}`;
           
-          // Try to extract filename from URL if it's not a data URL
           if (!url.startsWith('data:')) {
             try {
               const urlPath = new URL(url).pathname;
               const originalFilename = urlPath.split('/').pop() || '';
               if (originalFilename && originalFilename.includes('.')) {
-                // Keep original extension but prefix with canvas ID for uniqueness
                 const nameWithoutExt = originalFilename.substring(0, originalFilename.lastIndexOf('.'));
                 const ext = originalFilename.substring(originalFilename.lastIndexOf('.'));
                 filename = `${canvasId}-${nameWithoutExt}${ext}`;
               }
             } catch {
-              // Use default filename
+              // Fallback to default filename
             }
           }
           
-          // Use filename directly in ZIP root (no canvas folders)
           allFiles.push({ url, filename, canvasId });
         }
       }
       
-      console.log(`Total files to add to ZIP: ${allFiles.length}`);
-      
       if (allFiles.length === 0) {
-        console.warn('No files to download');
         setIsDownloading(false);
         return;
       }
       
-      // Fetch all files and add them to the ZIP
-      console.log('Fetching files and adding to ZIP...');
       for (let i = 0; i < allFiles.length; i++) {
         const file = allFiles[i];
         try {
-          console.log(`Fetching ${i + 1}/${allFiles.length}: ${file.filename}`);
-          
           let blob: Blob;
           if (file.url.startsWith('data:')) {
-            // Handle data URLs (base64)
             const response = await fetch(file.url);
             if (!response.ok) {
               throw new Error(`Failed to fetch data URL: ${response.statusText}`);
             }
             blob = await response.blob();
           } else {
-            // Handle regular URLs
             const response = await fetch(file.url);
             if (!response.ok) {
               throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
@@ -271,20 +249,13 @@ const Dashboard = () => {
             blob = await response.blob();
           }
           
-          // Add file to ZIP
           zip.file(file.filename, blob);
-          console.log(`Added ${file.filename} to ZIP`);
         } catch (error) {
           console.error(`Failed to fetch file ${file.filename}:`, error);
-          // Continue with other files even if one fails
         }
       }
       
-      // Generate ZIP file
-      console.log('Generating ZIP file...');
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      
-      // Download the ZIP file
       const zipUrl = window.URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
       link.href = zipUrl;
@@ -294,10 +265,7 @@ const Dashboard = () => {
       link.click();
       document.body.removeChild(link);
       
-      // Clean up
       setTimeout(() => window.URL.revokeObjectURL(zipUrl), 100);
-      
-      console.log('Bulk download completed - ZIP file downloaded');
     } catch (error) {
       console.error('Error during bulk download:', error);
     } finally {
@@ -305,40 +273,56 @@ const Dashboard = () => {
     }
   };
 
+
+  const getCanvasKey = (category: Category, canvasId: string) => {
+    return `${selectedTab}-${category}-${canvasId}`;
+  };
+
   const confirmDelete = () => {
-    // Handle bulk delete
-    if (deleteModal.canvasId === null && selectedCanvases.size > 0) {
-      confirmBulkDelete();
+    if (!deleteModal.canvasId) {
+      setDeleteModal({ isOpen: false, canvasId: null });
       return;
     }
 
-    // Handle single delete
-    if (deleteModal.canvasId) {
-      const canvasKey = `${selectedCategory}-${deleteModal.canvasId}`;
-      setCanvases((prev) => {
-        return {
-          ...prev,
-          [selectedCategory]: prev[selectedCategory].filter(
-            (canvas) => canvas.id !== deleteModal.canvasId
-          ),
-        };
-      });
-      // Remove objects for deleted canvas
+    const canvasKey = getCanvasKey(selectedCategory, deleteModal.canvasId);
+    setCanvases((prev) => {
+      return {
+        ...prev,
+        [selectedCategory]: prev[selectedCategory].filter(
+          (canvas) => canvas.id !== deleteModal.canvasId
+        ),
+      };
+    });
       setCanvasObjects((prev) => {
-        const updated = { ...prev };
-        delete updated[canvasKey];
-        return updated;
-      });
-    }
+      const updated = { ...prev };
+      delete updated[canvasKey];
+      return updated;
+    });
     setDeleteModal({ isOpen: false, canvasId: null });
   };
 
-  const getCanvasKey = (category: Category, canvasId: string) => {
-    return `${category}-${canvasId}`;
+  const cancelDelete = () => {
+    setDeleteModal({ isOpen: false, canvasId: null });
   };
 
   const handleObjectsChange = (category: Category, canvasId: string, objects: CanvasObject[]) => {
     const key = getCanvasKey(category, canvasId);
+    
+    if (objects.length === 0) {
+      setCanvases((prev) => ({
+        ...prev,
+        [category]: prev[category].filter((canvas) => canvas.id !== canvasId),
+      }));
+      // Remove canvas objects
+      setCanvasObjects((prev) => {
+        const updated = { ...prev };
+        delete updated[key];
+        return updated;
+      });
+      return;
+    }
+    
+    // Otherwise, update the objects
     setCanvasObjects((prev) => ({
       ...prev,
       [key]: objects,
@@ -347,42 +331,78 @@ const Dashboard = () => {
 
   // Show loading state while data is being loaded from IndexedDB
   if (canvasesLoading || canvasObjectsLoading) {
-    return (
-      <div className="flex h-screen bg-bg-primary overflow-hidden items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-grey-bg-3 flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-white-60 animate-spin"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </div>
-          <p className="text-text-secondary text-sm font-secondary">Loading...</p>
-        </div>
-      </div>
-    );
+    return <SkeletonDashboard />;
   }
 
-  const cancelDelete = () => {
-    setDeleteModal({ isOpen: false, canvasId: null });
+
+  // Get available tags for autocomplete
+  const getAvailableTags = () => {
+    const allTags = new Set<string>();
+    const currentCanvases = canvases[selectedCategory];
+    currentCanvases.forEach((canvas) => {
+      const canvasKey = getCanvasKey(selectedCategory, canvas.id);
+      const objects = canvasObjects[canvasKey] || [];
+      const mediaObjects = objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
+      mediaObjects.forEach((obj) => {
+        if (obj.tags && obj.tags.length > 0) {
+          obj.tags.forEach((tag: string) => allTags.add(tag));
+        }
+      });
+    });
+    return Array.from(allTags).sort();
   };
+
+  // Get tag suggestions based on input
+  const getTagSuggestions = () => {
+    const availableTags = getAvailableTags();
+    if (!tagInput.trim()) {
+      return availableTags
+        .filter(tag => {
+          const tagLower = tag.toLowerCase();
+          return !tagsToAdd.some(t => t.toLowerCase() === tagLower);
+        })
+        .slice(0, 5);
+    }
+    
+    const inputLower = tagInput.toLowerCase();
+    return availableTags
+      .filter(tag => {
+        const tagLower = tag.toLowerCase();
+        return tagLower.includes(inputLower) && !tagsToAdd.some(t => t.toLowerCase() === tagLower);
+      })
+      .sort((a, b) => {
+        const aStarts = a.toLowerCase().startsWith(inputLower);
+        const bStarts = b.toLowerCase().startsWith(inputLower);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return a.localeCompare(b);
+      })
+      .slice(0, 5);
+  };
+
+  const tagSuggestions = getTagSuggestions();
 
   const handleAddTagInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && tagInput.trim()) {
       const newTag = tagInput.trim();
-      if (!tagsToAdd.includes(newTag)) {
+      const tagLower = newTag.toLowerCase();
+      if (!tagsToAdd.some(t => t.toLowerCase() === tagLower)) {
         setTagsToAdd([...tagsToAdd, newTag]);
       }
       setTagInput('');
+      setShowTagSuggestions(false);
+    } else if (e.key === 'Escape') {
+      setShowTagSuggestions(false);
     }
+  };
+
+  const handleAddTagFromSuggestion = (tag: string) => {
+    const tagLower = tag.toLowerCase();
+    if (!tagsToAdd.some(t => t.toLowerCase() === tagLower)) {
+      setTagsToAdd([...tagsToAdd, tag]);
+    }
+    setTagInput('');
+    setShowTagSuggestions(false);
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
@@ -449,30 +469,61 @@ const Dashboard = () => {
             <div className="font-bold" style={{ fontSize: '18px' }}>Marketing Dashboard</div>
           </h1>
           
-          {/* Tabs */}
-          <div className="mt-4 flex gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedTab(tab.id)}
-                className={`
-                  flex-1 px-3 py-2 rounded-lg text-sm font-secondary transition-all duration-200
-                  ${
-                    selectedTab === tab.id
-                      ? 'bg-grey-bg-3 text-text-primary'
-                      : 'text-text-secondary hover:bg-grey-bg-3 hover:text-text-primary'
-                  }
-                  active:opacity-80 active:scale-[0.98]
-                `}
-                style={{ minHeight: '44px' }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
           {/* Filter Section */}
           <div className="mt-4 space-y-4">
+            {/* Product Selector */}
+            <div>
+              <label className="block text-sm font-secondary text-text-secondary mb-2">
+                Product
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProductDropdown(!showProductDropdown);
+                    setShowDateDropdown(false);
+                    setShowTagDropdown(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary font-bold text-sm focus:outline-none focus:border-border flex items-center justify-between hover:bg-grey-bg-4 transition-colors duration-200"
+                  style={{ minHeight: '44px' }}
+                >
+                  <span>
+                    {selectedTab === 'Lumen' ? 'Lumen' : 'GodGPT'}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showProductDropdown ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {/* Product Dropdown */}
+                {showProductDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-grey-bg-2 border border-border rounded-lg shadow-elevated">
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTab(tab.id);
+                          setShowProductDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm font-secondary font-bold transition-colors duration-200 ${
+                          selectedTab === tab.id
+                            ? 'bg-grey-bg-3 text-text-primary'
+                            : 'text-text-primary hover:!bg-grey-bg-4'
+                        }`}
+                        style={{ width: '100%' }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Date Search */}
             <div>
               <label className="block text-sm font-secondary text-text-secondary mb-2">
@@ -481,8 +532,12 @@ const Dashboard = () => {
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowDateDropdown(!showDateDropdown)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary text-sm focus:outline-none focus:border-border flex items-center justify-between"
+                  onClick={() => {
+                    setShowDateDropdown(!showDateDropdown);
+                    setShowProductDropdown(false);
+                    setShowTagDropdown(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary text-sm focus:outline-none focus:border-border flex items-center justify-between hover:bg-grey-bg-4 transition-colors duration-200"
                   style={{ minHeight: '44px' }}
                 >
                   <span className={searchQuery ? '' : 'text-text-secondary'}>
@@ -558,7 +613,8 @@ const Dashboard = () => {
                             setSearchQuery('');
                             setShowDateDropdown(false);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm font-secondary text-text-secondary hover:bg-grey-bg-3 transition-colors"
+                          className="w-full px-3 py-2 text-left text-sm font-secondary text-text-secondary hover:!bg-grey-bg-4 hover:text-text-primary transition-colors duration-200"
+                          style={{ width: '100%' }}
                         >
                           Clear filter
                         </button>
@@ -573,11 +629,12 @@ const Dashboard = () => {
                                 setSearchQuery(dateLabel);
                                 setShowDateDropdown(false);
                               }}
-                              className={`w-full px-3 py-2 text-left text-sm font-secondary transition-colors ${
+                              className={`w-full px-3 py-2 text-left text-sm font-secondary transition-colors duration-200 ${
                                 searchQuery === dateLabel
                                   ? 'bg-grey-bg-3 text-text-primary'
-                                  : 'text-text-primary hover:bg-grey-bg-3'
+                                  : 'text-text-primary hover:!bg-grey-bg-4'
                               }`}
+                              style={{ width: '100%' }}
                             >
                               {dateLabel}
                             </button>
@@ -597,8 +654,12 @@ const Dashboard = () => {
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowTagDropdown(!showTagDropdown)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary text-sm focus:outline-none focus:border-border flex items-center justify-between"
+                  onClick={() => {
+                    setShowTagDropdown(!showTagDropdown);
+                    setShowProductDropdown(false);
+                    setShowDateDropdown(false);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary text-sm focus:outline-none focus:border-border flex items-center justify-between hover:bg-grey-bg-4 transition-colors duration-200"
                   style={{ minHeight: '44px' }}
                 >
                   <span className={selectedTags.size > 0 ? '' : 'text-text-secondary'}>
@@ -625,7 +686,7 @@ const Dashboard = () => {
                       const mediaObjects = objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
                       mediaObjects.forEach((obj) => {
                         if (obj.tags && obj.tags.length > 0) {
-                          obj.tags.forEach((tag) => allTags.add(tag));
+                          obj.tags.forEach((tag: string) => allTags.add(tag));
                         }
                       });
                     });
@@ -648,7 +709,8 @@ const Dashboard = () => {
                             setSelectedTags(new Set());
                             setShowTagDropdown(false);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm font-secondary text-text-secondary hover:bg-grey-bg-3 transition-colors"
+                          className="w-full px-3 py-2 text-left text-sm font-secondary text-text-secondary hover:!bg-grey-bg-4 hover:text-text-primary transition-colors duration-200"
+                          style={{ width: '100%' }}
                         >
                           Clear filter
                         </button>
@@ -667,11 +729,12 @@ const Dashboard = () => {
                                 }
                                 setSelectedTags(newSelectedTags);
                               }}
-                              className={`w-full px-3 py-2 text-left text-sm font-secondary transition-colors flex items-center gap-2 ${
+                              className={`w-full px-3 py-2 text-left text-sm font-secondary transition-colors duration-200 flex items-center gap-2 ${
                                 isSelected
                                   ? 'bg-grey-bg-3 text-text-primary'
-                                  : 'text-text-primary hover:bg-grey-bg-3'
+                                  : 'text-text-primary hover:!bg-grey-bg-4'
                               }`}
+                              style={{ width: '100%' }}
                             >
                               <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                                 isSelected
@@ -734,7 +797,7 @@ const Dashboard = () => {
         <div className="p-4 border-t border-border">
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="w-10 h-10 rounded-lg bg-button-bg text-button-text border border-border transition-all duration-200 active:opacity-80 flex items-center justify-center"
+            className="w-10 h-10 rounded-lg bg-button-bg text-button-text border border-border hover:bg-button-bg-hover transition-all duration-200 active:opacity-80 flex items-center justify-center"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
@@ -791,7 +854,7 @@ const Dashboard = () => {
 
           {/* Selection Toolbar */}
           {selectedCanvases.size > 0 && (
-            <div className="mb-4 p-4 rounded-lg bg-grey-bg-3 border border-border flex items-center justify-between">
+            <div className="sticky top-0 z-40 mb-4 p-4 rounded-lg bg-grey-bg-3 border border-border flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <span className="text-sm font-secondary text-text-primary">
                   {selectedCanvases.size} {selectedCanvases.size === 1 ? 'canvas' : 'canvases'} selected
@@ -817,8 +880,10 @@ const Dashboard = () => {
                 <button
                   onClick={handleBulkDownload}
                   disabled={isDownloading}
-                  className={`px-4 py-2 rounded-lg bg-grey-bg-4 hover:bg-white text-text-primary hover:text-black border border-border transition-all duration-200 active:opacity-80 flex items-center gap-2 ${
-                    isDownloading ? 'opacity-50 cursor-not-allowed' : ''
+                  className={`px-4 py-2 rounded-lg font-secondary transition-all duration-200 active:opacity-80 flex items-center gap-2 ${
+                    isDownloading 
+                      ? 'bg-grey-bg-4 text-text-primary opacity-50 cursor-not-allowed border border-border' 
+                      : 'bg-white text-black hover:bg-white-80'
                   }`}
                   style={{ minHeight: '44px' }}
                 >
@@ -840,18 +905,8 @@ const Dashboard = () => {
                   )}
                 </button>
                 <button
-                  onClick={handleBulkDelete}
-                  className="px-4 py-2 rounded-lg bg-white text-black hover:bg-white-90 transition-all duration-200 active:opacity-80 flex items-center gap-2"
-                  style={{ minHeight: '44px' }}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-                <button
                   onClick={() => setSelectedCanvases(new Set())}
-                  className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
+                  className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary hover:bg-grey-bg-4 hover:text-text-primary transition-all duration-200 active:opacity-80"
                   style={{ minHeight: '44px' }}
                 >
                   Cancel
@@ -934,18 +989,15 @@ const Dashboard = () => {
                 });
               }
               
-              // Apply tags filter if selected (on top of date filter)
               if (selectedTags.size > 0) {
                 filteredCanvases = filteredCanvases.filter((canvas) => {
                   const canvasKey = getCanvasKey(selectedCategory, canvas.id);
                   const objects = canvasObjects[canvasKey] || [];
                   const mediaObjects = objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
                   
-                  // Check if any media object has ALL selected tags
                   return mediaObjects.some((obj) => {
                     if (!obj.tags || obj.tags.length === 0) return false;
-                    const objTagsLower = obj.tags.map(t => t.toLowerCase());
-                    // Canvas must have at least one media object that contains all selected tags
+                    const objTagsLower = obj.tags.map((t: string) => t.toLowerCase());
                     return Array.from(selectedTags).every(selectedTag => 
                       objTagsLower.includes(selectedTag.toLowerCase())
                     );
@@ -958,7 +1010,6 @@ const Dashboard = () => {
                 return canvasObjects[key] || [];
               });
               
-              // Create canvas groups for hierarchical navigation
               const canvasGroups = filteredCanvases.map((canvas) => {
                 const key = getCanvasKey(selectedCategory, canvas.id);
                 const objects = canvasObjects[key] || [];
@@ -967,9 +1018,8 @@ const Dashboard = () => {
                   canvasId: canvas.id,
                   mediaObjects: mediaObjects,
                 };
-              }).filter(group => group.mediaObjects.length > 0); // Only include canvases with media
+              }).filter(group => group.mediaObjects.length > 0);
               
-              // Group canvases by date
               const getCanvasDate = (canvasId: string): Date | null => {
                 const key = getCanvasKey(selectedCategory, canvasId);
                 const objects = canvasObjects[key] || [];
@@ -1022,7 +1072,6 @@ const Dashboard = () => {
                   currentGroup.canvases.push(canvas);
                 } else {
                   const dateLabel = formatDateHeader(date);
-                  const dateKey = date.toDateString();
                   
                   if (!currentGroup || currentGroup.dateLabel !== dateLabel) {
                     currentGroup = { date, dateLabel, canvases: [] };
@@ -1047,7 +1096,7 @@ const Dashboard = () => {
                       
                       {/* Canvas Grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0">
-                        {group.canvases.map((canvas, index) => {
+                        {group.canvases.map((canvas) => {
                           const canvasKey = getCanvasKey(selectedCategory, canvas.id);
                           const objects = canvasObjects[canvasKey] || [];
                           const globalIndex = filteredCanvases.findIndex(c => c.id === canvas.id);
@@ -1091,11 +1140,9 @@ const Dashboard = () => {
                                 canvasGroups={canvasGroups}
                                 onObjectsChange={(newObjects) => handleObjectsChange(selectedCategory, canvas.id, newObjects)}
                                 onDelete={handleDeleteClick}
-                                canDelete={selectedCanvases.size === 0}
                                 totalCanvases={filteredCanvases.length}
                                 isSelected={selectedCanvases.has(canvas.id)}
                                 onToggleSelection={handleToggleCanvasSelection}
-                                selectionMode={selectedCanvases.size > 0}
                               />
                             </div>
                           );
@@ -1118,6 +1165,21 @@ const Dashboard = () => {
         onConfirmMultiple={handleMultipleUploads}
         allowMultiple={true}
         aspectRatio={selectedCategory}
+        availableTags={(() => {
+          // Collect all unique tags from all canvases for autocomplete
+          const allTags = new Set<string>();
+          currentCanvases.forEach((canvas) => {
+            const canvasKey = getCanvasKey(selectedCategory, canvas.id);
+            const objects = canvasObjects[canvasKey] || [];
+            const mediaObjects = objects.filter((obj) => obj.type === 'image' || obj.type === 'video');
+            mediaObjects.forEach((obj) => {
+              if (obj.tags && obj.tags.length > 0) {
+                obj.tags.forEach((tag: string) => allTags.add(tag));
+              }
+            });
+          });
+          return Array.from(allTags).sort();
+        })()}
       />
 
       {/* Delete Confirmation Modal */}
@@ -1125,7 +1187,7 @@ const Dashboard = () => {
         isOpen={deleteModal.isOpen}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-        count={deleteModal.canvasId === null ? selectedCanvases.size : 1}
+        count={1}
       />
 
       {/* Add Tags Modal */}
@@ -1137,6 +1199,7 @@ const Dashboard = () => {
               setShowAddTagsModal(false);
               setTagsToAdd([]);
               setTagInput('');
+              setShowTagSuggestions(false);
             }}
           />
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1155,15 +1218,42 @@ const Dashboard = () => {
                 <label className="block text-sm font-secondary text-text-secondary mb-2">
                   Tags
                 </label>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleAddTagInput}
-                  placeholder="Enter a tag and press Enter"
-                  className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border"
-                  style={{ minHeight: '44px' }}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => {
+                      setTagInput(e.target.value);
+                      setShowTagSuggestions(true);
+                    }}
+                    onKeyDown={handleAddTagInput}
+                    onFocus={() => {
+                      if (tagSuggestions.length > 0) {
+                        setShowTagSuggestions(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowTagSuggestions(false), 200);
+                    }}
+                    placeholder="Enter a tag and press Enter"
+                    className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border"
+                    style={{ minHeight: '44px' }}
+                  />
+                  {showTagSuggestions && tagSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-grey-bg-2 border border-border rounded-lg shadow-elevated z-50 max-h-48 overflow-y-auto">
+                      {tagSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => handleAddTagFromSuggestion(suggestion)}
+                          className="w-full px-3 py-2 text-left text-sm font-secondary text-text-primary hover:bg-grey-bg-4 transition-colors duration-200"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {tagsToAdd.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {tagsToAdd.map((tag) => (
@@ -1190,6 +1280,7 @@ const Dashboard = () => {
                     setShowAddTagsModal(false);
                     setTagsToAdd([]);
                     setTagInput('');
+                    setShowTagSuggestions(false);
                   }}
                   className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
                   style={{ minHeight: '44px' }}
@@ -1216,4 +1307,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
 

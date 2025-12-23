@@ -74,22 +74,26 @@ export const clearStore = async (storeName: string): Promise<void> => {
   await store.clear();
 };
 
-// Store-specific helpers
-export const saveCanvases = async (canvases: Record<string, any>): Promise<void> => {
-  await saveItem(STORE_CANVASES, { id: 'main', data: canvases });
+// Store-specific helpers with tab support
+export const saveCanvases = async (canvases: Record<string, any>, tab?: string): Promise<void> => {
+  const key = tab ? `${tab}-main` : 'main';
+  await saveItem(STORE_CANVASES, { id: key, data: canvases });
 };
 
-export const getCanvases = async (): Promise<Record<string, any> | undefined> => {
-  const item = await getItem<{ id: string; data: Record<string, any> }>(STORE_CANVASES, 'main');
+export const getCanvases = async (tab?: string): Promise<Record<string, any> | undefined> => {
+  const key = tab ? `${tab}-main` : 'main';
+  const item = await getItem<{ id: string; data: Record<string, any> }>(STORE_CANVASES, key);
   return item?.data;
 };
 
-export const saveCanvasObjects = async (canvasObjects: Record<string, any>): Promise<void> => {
-  await saveItem(STORE_CANVAS_OBJECTS, { key: 'main', data: canvasObjects });
+export const saveCanvasObjects = async (canvasObjects: Record<string, any>, tab?: string): Promise<void> => {
+  const key = tab ? `${tab}-main` : 'main';
+  await saveItem(STORE_CANVAS_OBJECTS, { key: key, data: canvasObjects });
 };
 
-export const getCanvasObjects = async (): Promise<Record<string, any> | undefined> => {
-  const item = await getItem<{ key: string; data: Record<string, any> }>(STORE_CANVAS_OBJECTS, 'main');
+export const getCanvasObjects = async (tab?: string): Promise<Record<string, any> | undefined> => {
+  const key = tab ? `${tab}-main` : 'main';
+  const item = await getItem<{ key: string; data: Record<string, any> }>(STORE_CANVAS_OBJECTS, key);
   return item?.data;
 };
 

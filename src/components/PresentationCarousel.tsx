@@ -9,10 +9,18 @@ interface PresentationCarouselProps {
   canvasGroups?: CanvasMediaGroup[]; // Grouped by canvas for hierarchical navigation
   initialCanvasId?: string;
   totalCanvases?: number;
+  aspectRatio?: '4:5' | '9:16'; // Canvas aspect ratio for clipping
   key?: string | number;
 }
 
-const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialCanvasId, totalCanvases }: PresentationCarouselProps) => {
+const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialCanvasId, totalCanvases, aspectRatio }: PresentationCarouselProps) => {
+  // Canvas dimensions for aspect ratio clipping
+  const canvasSizes = {
+    '4:5': { width: 1080, height: 1350 },
+    '9:16': { width: 1080, height: 1920 },
+  } as const;
+  
+  const canvasDimensions = aspectRatio ? canvasSizes[aspectRatio] : null;
   // If canvasGroups is provided, use hierarchical navigation (within canvas + between canvases)
   // Otherwise, use flat navigation (backward compatibility)
   const useHierarchicalNavigation = canvasGroups && canvasGroups.length > 0;
@@ -144,7 +152,7 @@ const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialC
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="relative w-full h-full max-w-7xl max-h-[90vh] flex items-center justify-center"
+          className="relative w-full h-full flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button */}
@@ -199,27 +207,67 @@ const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialC
             </svg>
           </button>
 
-          {/* Media Display */}
-          <div className="w-full h-full flex items-center justify-center relative" style={{ zIndex: 1 }}>
-            {currentObject.type === 'image' ? (
-              <img
-                src={currentObject.content}
-                alt="Presentation"
-                className="max-w-full max-h-full object-contain"
-              />
-            ) : (
-              <video
-                src={currentObject.content}
-                className="max-w-full max-h-full object-contain"
-                autoPlay
-                loop
-                muted
-                playsInline
-                controls
-                style={{ zIndex: 1 }}
-              />
-            )}
-          </div>
+          {/* Media Display - Cropped to canvas aspect ratio */}
+          {canvasDimensions ? (
+            <div 
+              className="relative overflow-hidden" 
+              style={{ 
+                zIndex: 1,
+                aspectRatio: `${canvasDimensions.width} / ${canvasDimensions.height}`,
+                width: `min(100vw, calc(100vh * ${canvasDimensions.width} / ${canvasDimensions.height}))`,
+                height: `min(100vh, calc(100vw * ${canvasDimensions.height} / ${canvasDimensions.width}))`,
+                maxWidth: '100vw',
+                maxHeight: '100vh',
+              }}
+            >
+              {currentObject.type === 'image' ? (
+                <img
+                  src={currentObject.content}
+                  alt="Presentation"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <video
+                  src={currentObject.content}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  controls
+                  style={{ zIndex: 1 }}
+                />
+              )}
+            </div>
+          ) : (
+            <div 
+              className="relative overflow-hidden w-full h-full" 
+              style={{ 
+                zIndex: 1,
+                maxWidth: '100vw',
+                maxHeight: '100vh',
+              }}
+            >
+              {currentObject.type === 'image' ? (
+                <img
+                  src={currentObject.content}
+                  alt="Presentation"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <video
+                  src={currentObject.content}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  controls
+                  style={{ zIndex: 1 }}
+                />
+              )}
+            </div>
+          )}
 
           {/* Next Button - Always visible */}
           <button
