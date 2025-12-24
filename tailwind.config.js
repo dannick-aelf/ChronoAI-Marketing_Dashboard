@@ -42,6 +42,11 @@ export default {
           DEFAULT: '#D4D4D4',
           dark: '#A3A3A3',
         },
+        // Semantic error colors
+        error: {
+          DEFAULT: '#EF4444',  // red-500 for dark theme
+          light: '#DC2626',     // red-600 for light theme
+        },
       },
       spacing: {
         'mobile': '20px',

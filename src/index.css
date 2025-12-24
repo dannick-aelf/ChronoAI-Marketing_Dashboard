@@ -40,6 +40,9 @@
   --color-border-light: var(--color-grey-bg-3);
   --color-border: var(--color-grey-bg-4);
   --color-border-dark: var(--color-white-40);
+  
+  /* Semantic Error Colors */
+  --color-error: #EF4444; /* red-500 - good contrast on dark backgrounds */
 }
 
 /* Light Mode Color Overrides */
@@ -61,6 +64,9 @@
   --color-border-light: #E5E5E5;
   --color-border: #D4D4D4;
   --color-border-dark: #A3A3A3;
+  
+  /* Semantic Error Colors for Light Mode */
+  --color-error: #DC2626; /* red-600 - good contrast on light backgrounds */
   
   /* Grey Background Utilities for Light Mode */
   --color-grey-bg-1: #FAFAFA;
@@ -172,6 +178,9 @@
 .border-border-light { border-color: var(--color-border-light); }
 .border-border { border-color: var(--color-border); }
 .border-border-dark { border-color: var(--color-border-dark); }
+
+/* Error Color Utility Classes */
+.text-error { color: var(--color-error); }
 
 /* Lumen Brand Colors */
 .bg-orange-primary { background-color: var(--color-orange-primary); }

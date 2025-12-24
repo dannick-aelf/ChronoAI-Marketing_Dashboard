@@ -423,7 +423,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
 
 
           {error && (
-            <p className="text-sm text-white mb-4 font-secondary">{error}</p>
+            <p className="text-sm text-error mb-4 font-secondary">{error}</p>
           )}
 
           {/* Tags Section */}
