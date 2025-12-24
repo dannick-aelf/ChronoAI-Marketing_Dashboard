@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Modal from 'react-modal';
 
 interface TextEditorModalProps {
   isOpen: boolean;
@@ -25,8 +26,6 @@ const TextEditorModal = ({
   const [color, setColor] = useState(initialColor);
   const [fontFamily, setFontFamily] = useState(initialFontFamily);
 
-  if (!isOpen) return null;
-
   const handleSubmit = () => {
     if (text.trim()) {
       onConfirm(text, fontSize, color, fontFamily);
@@ -35,16 +34,14 @@ const TextEditorModal = ({
   };
 
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-black bg-opacity-60 z-40"
-        onClick={onClose}
-      />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6"
-          onClick={(e) => e.stopPropagation()}
-        >
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={onClose}
+      contentLabel="Add Text"
+      className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6 mx-4 outline-none"
+      overlayClassName="fixed inset-0 bg-black bg-opacity-60 z-40 flex items-center justify-center p-4"
+      ariaHideApp={false}
+    >
           <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
             Add Text
           </h3>
@@ -150,9 +147,7 @@ const TextEditorModal = ({
               Add Text
             </button>
           </div>
-        </div>
-      </div>
-    </>
+    </Modal>
   );
 };
 

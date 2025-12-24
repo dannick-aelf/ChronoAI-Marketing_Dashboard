@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import Modal from 'react-modal';
 
 interface MediaUploadModalProps {
   isOpen: boolean;
@@ -85,17 +86,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     }
   }, [isOpen, initialMediaUrl, initialMediaType, initialTags, initialComments, initialFiles]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  // react-modal handles Escape key automatically via onRequestClose
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -395,16 +386,14 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
   };
 
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-black bg-opacity-60 z-[100]"
-        onClick={handleClose}
-      />
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-        <div
-          className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6 my-auto max-h-[90vh] overflow-y-auto relative z-[101]"
-          onClick={(e) => e.stopPropagation()}
-        >
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={handleClose}
+      contentLabel="Add Image or Video"
+      className="bg-grey-bg-2 border border-border rounded-lg shadow-elevated max-w-lg w-full p-6 mx-4 my-auto max-h-[90vh] overflow-y-auto outline-none relative"
+      overlayClassName="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 overflow-y-auto"
+      ariaHideApp={false}
+    >
           <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
             Add Image or Video
           </h3>
@@ -675,9 +664,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
               </button>
             )}
           </div>
-        </div>
-      </div>
-    </>
+    </Modal>
   );
 };
 

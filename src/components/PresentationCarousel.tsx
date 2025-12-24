@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import Modal from 'react-modal';
 import { type CanvasObject } from './CanvasEditor';
 import { type CanvasMediaGroup } from './Canvas';
 
@@ -145,16 +146,14 @@ const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialC
   if (!isOpen || !hasContent || !currentObject) return null;
 
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-black bg-opacity-90 z-50"
-        onClick={onClose}
-      />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className="relative w-full h-full flex items-center justify-center"
-          onClick={(e) => e.stopPropagation()}
-        >
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={onClose}
+      contentLabel="Presentation Carousel"
+      className="relative w-full h-full flex items-center justify-center outline-none"
+      overlayClassName="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+      ariaHideApp={false}
+    >
           {/* Close Button */}
           <button
             onClick={onClose}
@@ -329,9 +328,7 @@ const PresentationCarousel = ({ isOpen, onClose, objects, canvasGroups, initialC
               </div>
             )
           )}
-        </div>
-      </div>
-    </>
+    </Modal>
   );
 };
 
