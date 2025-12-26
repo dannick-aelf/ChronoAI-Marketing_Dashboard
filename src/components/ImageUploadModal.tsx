@@ -1,13 +1,26 @@
-import { useState, useRef, useEffect } from 'react';
-import Modal from 'react-modal';
+import { useState, useRef, useEffect } from "react";
+import Modal from "react-modal";
+import { uploadImage } from "../services/storage/r2";
 
 interface MediaUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (url: string, type: 'image' | 'video', tags?: string[], comments?: string) => void;
-  onConfirmMultiple?: (files: Array<{ url: string; type: 'image' | 'video'; tags?: string[]; comments?: string }>) => void;
+  onConfirm: (
+    url: string,
+    type: "image" | "video",
+    tags?: string[],
+    comments?: string,
+  ) => void;
+  onConfirmMultiple?: (
+    files: Array<{
+      url: string;
+      type: "image" | "video";
+      tags?: string[];
+      comments?: string;
+    }>,
+  ) => void;
   initialMediaUrl?: string;
-  initialMediaType?: 'image' | 'video';
+  initialMediaType?: "image" | "video";
   initialTags?: string[];
   initialComments?: string;
   initialFiles?: MediaFile[]; // Array of existing files (for carousel editing)
@@ -18,24 +31,40 @@ interface MediaUploadModalProps {
 
 interface MediaFile {
   url: string;
-  type: 'image' | 'video';
+  type: "image" | "video";
   tags?: string[];
   comments?: string;
   id?: string; // Unique identifier for stable keys
 }
 
-const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initialMediaUrl, initialMediaType, initialTags, initialComments, initialFiles, allowMultiple, availableTags = [] }: MediaUploadModalProps) => {
-  const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+const ImageUploadModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  onConfirmMultiple,
+  initialMediaUrl,
+  initialMediaType,
+  initialTags,
+  initialComments,
+  initialFiles,
+  allowMultiple,
+  availableTags = [],
+}: MediaUploadModalProps) => {
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const [tags, setTags] = useState<string[]>(initialTags || []);
-  const [tagInput, setTagInput] = useState('');
-  const [comments, setComments] = useState<string>(initialComments || '');
-  const [error, setError] = useState('');
+  const [tagInput, setTagInput] = useState("");
+  const [comments, setComments] = useState<string>(initialComments || "");
+  const [error, setError] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([]);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {},
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const tagsManuallySetRef = useRef(false);
@@ -46,7 +75,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       // Only initialize on first open, not on subsequent updates
       if (!hasInitializedRef.current) {
         tagsManuallySetRef.current = false;
-        
+
         if (initialFiles && initialFiles.length > 0) {
           const filesWithIds = initialFiles.map((file, idx) => ({
             ...file,
@@ -57,12 +86,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
           setMediaUrl(initialFiles[0].url);
           setMediaType(initialFiles[0].type);
           setTags(initialFiles[0].tags || []);
-          setComments(initialFiles[0].comments || '');
+          setComments(initialFiles[0].comments || "");
         } else {
-          setMediaUrl(initialMediaUrl || '');
+          setMediaUrl(initialMediaUrl || "");
           setMediaType(initialMediaType || null);
           setTags(initialTags || []);
-          setComments(initialComments || '');
+          setComments(initialComments || "");
           setSelectedFiles([]);
           setCurrentPreviewIndex(0);
         }
@@ -70,12 +99,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       }
     } else {
       // Reset when modal closes
-      setMediaUrl('');
+      setMediaUrl("");
       setMediaType(null);
       setTags([]);
-      setTagInput('');
-      setComments('');
-      setError('');
+      setTagInput("");
+      setComments("");
+      setError("");
       setSelectedFiles([]);
       setCurrentPreviewIndex(0);
       setDraggedIndex(null);
@@ -84,7 +113,14 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       tagsManuallySetRef.current = false;
       hasInitializedRef.current = false;
     }
-  }, [isOpen, initialMediaUrl, initialMediaType, initialTags, initialComments, initialFiles]);
+  }, [
+    isOpen,
+    initialMediaUrl,
+    initialMediaType,
+    initialTags,
+    initialComments,
+    initialFiles,
+  ]);
 
   // react-modal handles Escape key automatically via onRequestClose
 
@@ -93,69 +129,121 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     if (!files || files.length === 0) return;
 
     if (allowMultiple && onConfirmMultiple && files.length >= 1) {
-      setError('');
-      
-      const filePromises = Array.from(files).map((file) => {
-        return new Promise<MediaFile>((resolve, reject) => {
-          const isImage = file.type.startsWith('image/');
-          const isVideo = file.type.startsWith('video/');
+      setError("");
+      setUploading(true);
 
-          if (!isImage && !isVideo) {
-            reject(new Error(`Invalid file type: ${file.name}`));
-            return;
+      const filePromises = Array.from(files).map(async (file) => {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+
+        if (!isImage && !isVideo) {
+          throw new Error(`Invalid file type: ${file.name}`);
+        }
+
+        const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        try {
+          let url: string;
+
+          if (isImage) {
+            // Upload images to R2
+            setUploadProgress((prev) => ({ ...prev, [fileId]: 0 }));
+            url = await uploadImage(file);
+            setUploadProgress((prev) => ({ ...prev, [fileId]: 100 }));
+          } else {
+            // Videos: keep as base64 for now (can be migrated to R2 later)
+            url = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const result = event.target?.result;
+                if (typeof result === "string") {
+                  resolve(result);
+                } else {
+                  reject(new Error(`Failed to read file: ${file.name}`));
+                }
+              };
+              reader.onerror = () =>
+                reject(new Error(`Failed to read file: ${file.name}`));
+              reader.readAsDataURL(file);
+            });
           }
 
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const result = event.target?.result;
-            if (typeof result === 'string') {
-              resolve({
-                url: result,
-                type: isImage ? 'image' : 'video',
-                tags: tags.length > 0 ? tags : undefined,
-                comments: comments.trim() || undefined,
-                id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              });
-            } else {
-              reject(new Error(`Failed to read file: ${file.name}`));
-            }
-          };
-          reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-          reader.readAsDataURL(file);
-        });
+          return {
+            url,
+            type: isImage ? "image" : "video",
+            tags: tags.length > 0 ? tags : undefined,
+            comments: comments.trim() || undefined,
+            id: fileId,
+          } as MediaFile;
+        } catch (err: any) {
+          setUploadProgress((prev) => {
+            const updated = { ...prev };
+            delete updated[fileId];
+            return updated;
+          });
+          throw err;
+        }
       });
 
       try {
         const results = await Promise.all(filePromises);
-        setSelectedFiles(prev => [...prev, ...results]);
+        setSelectedFiles((prev) => [...prev, ...results]);
         setCurrentPreviewIndex(0);
-        setError('');
+        setError("");
+        setUploadProgress({});
       } catch (err: any) {
-        setError(err.message || 'Failed to load some files');
+        setError(err.message || "Failed to upload some files");
+      } finally {
+        setUploading(false);
       }
       return;
     }
 
-    // Single file handling (existing behavior)
+    // Single file handling
     const file = files[0];
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
 
     if (!isImage && !isVideo) {
-      setError('Please select an image or video file');
+      setError("Please select an image or video file");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result;
-      if (typeof result === 'string') {
-        setMediaUrl(result);
-        setMediaType(isImage ? 'image' : 'video');
-        setError('');
+    setUploading(true);
+    setError("");
+
+    try {
+      let url: string;
+
+      if (isImage) {
+        // Upload images to R2
+        url = await uploadImage(file);
+      } else {
+        // Videos: keep as base64 for now
+        url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const result = event.target?.result;
+            if (typeof result === "string") {
+              resolve(result);
+            } else {
+              reject(new Error(`Failed to read file: ${file.name}`));
+            }
+          };
+          reader.onerror = () =>
+            reject(new Error(`Failed to read file: ${file.name}`));
+          reader.readAsDataURL(file);
+        });
       }
-    };
-    reader.readAsDataURL(file);
+
+      setMediaUrl(url);
+      setMediaType(isImage ? "image" : "video");
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Failed to upload file");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleAddTag = (tagToAdd?: string) => {
@@ -163,14 +251,14 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     if (tag) {
       // Case-insensitive check to avoid duplicates
       const tagLower = tag.toLowerCase();
-      if (!tags.some(t => t.toLowerCase() === tagLower)) {
+      if (!tags.some((t) => t.toLowerCase() === tagLower)) {
         setTags([...tags, tag]);
         tagsManuallySetRef.current = true;
-        setTagInput('');
+        setTagInput("");
         setShowTagSuggestions(false);
       } else {
         // Clear input even if tag already exists
-        setTagInput('');
+        setTagInput("");
         setShowTagSuggestions(false);
       }
     }
@@ -180,18 +268,23 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
   const getTagSuggestions = () => {
     if (!tagInput.trim()) {
       // If input is empty, show all available tags that aren't already added
-      return availableTags.filter(tag => {
-        const tagLower = tag.toLowerCase();
-        return !tags.some(t => t.toLowerCase() === tagLower);
-      }).slice(0, 5); // Limit to 5 suggestions
+      return availableTags
+        .filter((tag) => {
+          const tagLower = tag.toLowerCase();
+          return !tags.some((t) => t.toLowerCase() === tagLower);
+        })
+        .slice(0, 5); // Limit to 5 suggestions
     }
-    
+
     const inputLower = tagInput.toLowerCase();
     return availableTags
-      .filter(tag => {
+      .filter((tag) => {
         const tagLower = tag.toLowerCase();
         // Show tags that match the input and aren't already added
-        return tagLower.includes(inputLower) && !tags.some(t => t.toLowerCase() === tagLower);
+        return (
+          tagLower.includes(inputLower) &&
+          !tags.some((t) => t.toLowerCase() === tagLower)
+        );
       })
       .sort((a, b) => {
         // Prioritize tags that start with the input
@@ -207,14 +300,14 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
   const tagSuggestions = getTagSuggestions();
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       handleAddTag();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setShowTagSuggestions(false);
     }
   };
@@ -222,26 +315,33 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
   const handleUrlSubmit = () => {
     if (mediaUrl.trim()) {
       // Determine type from URL or use detected type
-      const type = mediaType || (mediaUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : 'image');
-      onConfirm(mediaUrl, type, tags.length > 0 ? tags : undefined, comments.trim() || undefined);
-      setMediaUrl('');
+      const type =
+        mediaType ||
+        (mediaUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? "video" : "image");
+      onConfirm(
+        mediaUrl,
+        type,
+        tags.length > 0 ? tags : undefined,
+        comments.trim() || undefined,
+      );
+      setMediaUrl("");
       setMediaType(null);
       setTags([]);
-      setTagInput('');
-      setError('');
+      setTagInput("");
+      setError("");
       onClose();
     } else {
-      setError('Please select a file');
+      setError("Please select a file");
     }
   };
 
   const handleClose = () => {
-    setMediaUrl('');
+    setMediaUrl("");
     setMediaType(null);
     setTags([]);
-    setTagInput('');
-    setComments('');
-    setError('');
+    setTagInput("");
+    setComments("");
+    setError("");
     setSelectedFiles([]);
     setCurrentPreviewIndex(0);
     onClose();
@@ -249,7 +349,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
 
   const handleConfirmMultiple = () => {
     if (!onConfirmMultiple) {
-      setError('Save function not available');
+      setError("Save function not available");
       return;
     }
 
@@ -257,7 +357,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     // This handles the case where user just wants to update tags/comments
     if (selectedFiles.length === 0 && initialFiles && initialFiles.length > 0) {
       // User removed all files but we still want to save tags/comments to existing files
-      const filesWithMetadata = initialFiles.map(file => ({
+      const filesWithMetadata = initialFiles.map((file) => ({
         ...file,
         tags: tags.length > 0 ? [...tags] : undefined,
         comments: comments.trim() || undefined,
@@ -266,16 +366,16 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       setSelectedFiles([]);
       setCurrentPreviewIndex(0);
       setTags([]);
-      setTagInput('');
-      setComments('');
-      setError('');
+      setTagInput("");
+      setComments("");
+      setError("");
       onClose();
       return;
     }
 
     if (selectedFiles.length > 0) {
       // Apply current tags and comments to all files
-      const filesWithMetadata = selectedFiles.map(file => ({
+      const filesWithMetadata = selectedFiles.map((file) => ({
         ...file,
         tags: tags.length > 0 ? [...tags] : undefined,
         comments: comments.trim() || undefined,
@@ -284,26 +384,26 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       setSelectedFiles([]);
       setCurrentPreviewIndex(0);
       setTags([]);
-      setTagInput('');
-      setComments('');
-      setError('');
+      setTagInput("");
+      setComments("");
+      setError("");
       onClose();
     } else {
-      setError('Please select at least one file or add new files');
+      setError("Please select at least one file or add new files");
     }
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    
+    e.dataTransfer.dropEffect = "move";
+
     if (draggedIndex !== null && draggedIndex !== index) {
       setDragOverIndex(index);
     }
@@ -314,7 +414,7 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
-    
+
     // Check if we're moving to a child element (like the remove button)
     const relatedTarget = e.relatedTarget as HTMLElement;
     if (relatedTarget) {
@@ -326,12 +426,12 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       const removeButton = relatedTarget.closest('button[title="Remove"]');
       if (removeButton) {
         // Ensure the button stays visible
-        (removeButton as HTMLElement).style.opacity = '1';
-        (removeButton as HTMLElement).style.visibility = 'visible';
+        (removeButton as HTMLElement).style.opacity = "1";
+        (removeButton as HTMLElement).style.visibility = "visible";
         return; // Don't clear if moving to the remove button
       }
     }
-    
+
     // Only clear if we're truly leaving the bounds
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       setDragOverIndex(null);
@@ -342,11 +442,11 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
     e.preventDefault();
     e.stopPropagation();
     setDragOverIndex(null);
-    
+
     if (draggedIndex === null) {
       return;
     }
-    
+
     if (draggedIndex === dropIndex) {
       setDraggedIndex(null);
       return;
@@ -354,17 +454,17 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
 
     const newFiles = [...selectedFiles];
     const [draggedFile] = newFiles.splice(draggedIndex, 1);
-    
+
     // Calculate the correct insertion index
     let insertIndex = dropIndex;
     if (draggedIndex < dropIndex) {
       // Dragging down: adjust because we removed an item before the drop position
       insertIndex = dropIndex - 1;
     }
-    
+
     newFiles.splice(insertIndex, 0, draggedFile);
     setSelectedFiles(newFiles);
-    
+
     // Update preview index to follow the moved item
     setCurrentPreviewIndex(insertIndex);
     setDraggedIndex(null);
@@ -394,280 +494,365 @@ const ImageUploadModal = ({ isOpen, onClose, onConfirm, onConfirmMultiple, initi
       overlayClassName="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 overflow-y-auto"
       ariaHideApp={false}
     >
-          <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
-            Add Image or Video
-          </h3>
-          
-          {/* Divider */}
-          <div className="border-b border-border mb-4 -mx-6" style={{ width: 'calc(100% + 3rem)' }}></div>
+      <h3 className="text-xl font-primary font-bold text-text-primary mb-4">
+        Add Image or Video
+      </h3>
 
-          <div className="mb-4">
-            <label className="block text-sm font-secondary text-text-secondary mb-2">
-              Upload Media
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              multiple={allowMultiple}
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary font-secondary transition-all duration-200"
-            >
-              {allowMultiple ? 'Choose Files (Image or Video)' : 'Choose File (Image or Video)'}
-            </button>
+      {/* Divider */}
+      <div
+        className="border-b border-border mb-4 -mx-6"
+        style={{ width: "calc(100% + 3rem)" }}
+      ></div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-secondary text-text-secondary mb-2">
+          Upload Media
+        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple={allowMultiple}
+          onChange={handleFileSelect}
+          disabled={uploading}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className={`w-full px-4 py-3 rounded-lg border border-border bg-grey-bg-3 hover:bg-grey-bg-4 text-text-primary font-secondary transition-all duration-200 ${
+            uploading ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          {uploading
+            ? "Uploading..."
+            : allowMultiple
+              ? "Choose Files (Image or Video)"
+              : "Choose File (Image or Video)"}
+        </button>
+        {uploading && Object.keys(uploadProgress).length > 0 && (
+          <div className="mt-2 space-y-1">
+            {Object.entries(uploadProgress).map(([fileId, progress]) => (
+              <div
+                key={fileId}
+                className="w-full bg-grey-bg-4 rounded-full h-2"
+              >
+                <div
+                  className="bg-white h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            ))}
           </div>
+        )}
+      </div>
 
+      {error && (
+        <p className="text-sm text-error mb-4 font-secondary">{error}</p>
+      )}
 
-          {error && (
-            <p className="text-sm text-error mb-4 font-secondary">{error}</p>
+      {/* Tags Section */}
+      <div className="mb-4">
+        <label className="block text-sm font-secondary text-text-secondary mb-2">
+          Tags
+        </label>
+        <div className="relative flex gap-2 mb-2">
+          <input
+            ref={tagInputRef}
+            type="text"
+            value={tagInput}
+            onChange={(e) => {
+              setTagInput(e.target.value);
+              setShowTagSuggestions(true);
+            }}
+            onKeyDown={handleTagInputKeyDown}
+            onFocus={() => {
+              if (tagSuggestions.length > 0) {
+                setShowTagSuggestions(true);
+              }
+            }}
+            onBlur={() => {
+              // Delay hiding to allow clicking on suggestions
+              setTimeout(() => setShowTagSuggestions(false), 200);
+            }}
+            placeholder="Enter a tag and press Enter"
+            className="flex-1 px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border"
+          />
+          {/* Tag Suggestions Dropdown */}
+          {showTagSuggestions && tagSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-grey-bg-2 border border-border rounded-lg shadow-elevated z-50 max-h-48 overflow-y-auto">
+              {tagSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => handleAddTag(suggestion)}
+                  className="w-full px-3 py-2 text-left text-sm font-secondary text-text-primary hover:bg-grey-bg-4 transition-colors duration-200"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           )}
+        </div>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-grey-bg-4 text-white text-xs font-secondary"
+              >
+                {tag}
+                <button
+                  onClick={() => handleRemoveTag(tag)}
+                  className="hover:text-white-60 transition-colors"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
-          {/* Tags Section */}
-          <div className="mb-4">
-            <label className="block text-sm font-secondary text-text-secondary mb-2">
-              Tags
-            </label>
-            <div className="relative flex gap-2 mb-2">
-              <input
-                ref={tagInputRef}
-                type="text"
-                value={tagInput}
-                onChange={(e) => {
-                  setTagInput(e.target.value);
-                  setShowTagSuggestions(true);
+      {/* Comments Section */}
+      <div className="mb-4">
+        <label className="block text-sm font-secondary text-text-secondary mb-2">
+          Comments
+        </label>
+        <textarea
+          value={comments}
+          onChange={(e) => setComments(e.target.value)}
+          placeholder="Enter comments..."
+          rows={3}
+          className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border resize-none"
+        />
+      </div>
+
+      {/* File List with Reorder Controls */}
+      {selectedFiles.length > 0 && (
+        <div className="mb-4">
+          <div className="space-y-2">
+            {selectedFiles.map((file, index) => (
+              <div
+                key={file.id || file.url || index}
+                draggable
+                onDragStart={(e) => {
+                  // Don't start drag if clicking on the remove button
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button[title="Remove"]')) {
+                    e.preventDefault();
+                    return;
+                  }
+                  handleDragStart(e, index);
                 }}
-                onKeyDown={handleTagInputKeyDown}
-                onFocus={() => {
-                  if (tagSuggestions.length > 0) {
-                    setShowTagSuggestions(true);
+                onDragOver={(e) => {
+                  // Don't handle drag over if over the remove button
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button[title="Remove"]')) {
+                    return;
+                  }
+                  handleDragOver(e, index);
+                }}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => {
+                  // Don't handle drop if over the remove button
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button[title="Remove"]')) {
+                    return;
+                  }
+                  handleDrop(e, index);
+                }}
+                onDragEnd={handleDragEnd}
+                className={`flex items-center gap-2 p-2 rounded-lg bg-grey-bg-3 border border-border cursor-move ${
+                  draggedIndex === index ? "opacity-50" : ""
+                } ${
+                  dragOverIndex === index ? "border-border bg-grey-bg-4" : ""
+                }`}
+                style={{
+                  transition:
+                    draggedIndex === index
+                      ? "opacity 0.2s ease"
+                      : "background-color 0.2s ease, border-color 0.2s ease",
+                  position: "relative",
+                }}
+                onMouseEnter={(e) => {
+                  // Ensure button stays visible when hovering over parent
+                  const button = e.currentTarget.querySelector(
+                    'button[title="Remove"]',
+                  ) as HTMLElement;
+                  if (button) {
+                    button.style.setProperty("opacity", "1", "important");
+                    button.style.setProperty(
+                      "visibility",
+                      "visible",
+                      "important",
+                    );
                   }
                 }}
-                onBlur={() => {
-                  // Delay hiding to allow clicking on suggestions
-                  setTimeout(() => setShowTagSuggestions(false), 200);
+                onMouseLeave={(e) => {
+                  // Ensure button stays visible when leaving parent
+                  const button = e.currentTarget.querySelector(
+                    'button[title="Remove"]',
+                  ) as HTMLElement;
+                  if (button) {
+                    button.style.setProperty("opacity", "1", "important");
+                    button.style.setProperty(
+                      "visibility",
+                      "visible",
+                      "important",
+                    );
+                  }
                 }}
-                placeholder="Enter a tag and press Enter"
-                className="flex-1 px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border"
-              />
-              {/* Tag Suggestions Dropdown */}
-              {showTagSuggestions && tagSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-grey-bg-2 border border-border rounded-lg shadow-elevated z-50 max-h-48 overflow-y-auto">
-                  {tagSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => handleAddTag(suggestion)}
-                      className="w-full px-3 py-2 text-left text-sm font-secondary text-text-primary hover:bg-grey-bg-4 transition-colors duration-200"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-grey-bg-4 text-white text-xs font-secondary"
+              >
+                <div className="cursor-grab active:cursor-grabbing opacity-60 hover:opacity-100 transition-opacity pointer-events-none">
+                  <svg
+                    className="w-5 h-5 text-text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    {tag}
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-white-60 transition-colors"
-                    >
-                      ×
-                    </button>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
+                    {file.type === "video" ? (
+                      <video
+                        src={file.url}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={file.url}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <span className="text-sm font-secondary text-text-primary">
+                    {file.type === "image" ? "Image" : "Video"} {index + 1}
                   </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Comments Section */}
-          <div className="mb-4">
-            <label className="block text-sm font-secondary text-text-secondary mb-2">
-              Comments
-            </label>
-            <textarea
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              placeholder="Enter comments..."
-              rows={3}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary focus:outline-none focus:border-border resize-none"
-            />
-          </div>
-
-          {/* File List with Reorder Controls */}
-          {selectedFiles.length > 0 && (
-            <div className="mb-4">
-              <div className="space-y-2">
-                {selectedFiles.map((file, index) => (
-                  <div
-                    key={file.id || file.url || index}
-                    draggable
-                    onDragStart={(e) => {
-                      // Don't start drag if clicking on the remove button
-                      const target = e.target as HTMLElement;
-                      if (target.closest('button[title="Remove"]')) {
-                        e.preventDefault();
-                        return;
-                      }
-                      handleDragStart(e, index);
+                </div>
+                <div className="relative flex-shrink-0" style={{ zIndex: 100 }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleRemoveFile(index);
                     }}
-                    onDragOver={(e) => {
-                      // Don't handle drag over if over the remove button
-                      const target = e.target as HTMLElement;
-                      if (target.closest('button[title="Remove"]')) {
-                        return;
-                      }
-                      handleDragOver(e, index);
-                    }}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => {
-                      // Don't handle drop if over the remove button
-                      const target = e.target as HTMLElement;
-                      if (target.closest('button[title="Remove"]')) {
-                        return;
-                      }
-                      handleDrop(e, index);
-                    }}
-                    onDragEnd={handleDragEnd}
-                    className={`flex items-center gap-2 p-2 rounded-lg bg-grey-bg-3 border border-border cursor-move ${
-                      draggedIndex === index ? 'opacity-50' : ''
-                    } ${
-                      dragOverIndex === index ? 'border-border bg-grey-bg-4' : ''
-                    }`}
-                    style={{
-                      transition: draggedIndex === index ? 'opacity 0.2s ease' : 'background-color 0.2s ease, border-color 0.2s ease',
-                      position: 'relative'
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                     }}
                     onMouseEnter={(e) => {
-                      // Ensure button stays visible when hovering over parent
-                      const button = e.currentTarget.querySelector('button[title="Remove"]') as HTMLElement;
-                      if (button) {
-                        button.style.setProperty('opacity', '1', 'important');
-                        button.style.setProperty('visibility', 'visible', 'important');
-                      }
+                      e.stopPropagation();
+                      // Force visibility on hover
+                      e.currentTarget.style.opacity = "1";
+                      e.currentTarget.style.visibility = "visible";
                     }}
                     onMouseLeave={(e) => {
-                      // Ensure button stays visible when leaving parent
-                      const button = e.currentTarget.querySelector('button[title="Remove"]') as HTMLElement;
-                      if (button) {
-                        button.style.setProperty('opacity', '1', 'important');
-                        button.style.setProperty('visibility', 'visible', 'important');
-                      }
+                      e.stopPropagation();
+                      // Force visibility on leave
+                      e.currentTarget.style.opacity = "1";
+                      e.currentTarget.style.visibility = "visible";
+                    }}
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    onDragOver={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    draggable={false}
+                    className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
+                    title="Remove"
+                    style={{
+                      opacity: 1,
+                      visibility: "visible",
+                      display: "flex",
+                      pointerEvents: "auto",
+                      position: "relative",
+                      zIndex: 100,
                     }}
                   >
-                    <div className="cursor-grab active:cursor-grabbing opacity-60 hover:opacity-100 transition-opacity pointer-events-none">
-                      <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                      </svg>
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                        {file.type === 'video' ? (
-                          <video src={file.url} className="w-full h-full object-cover" />
-                        ) : (
-                          <img src={file.url} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <span className="text-sm font-secondary text-text-primary">
-                        {file.type === 'image' ? 'Image' : 'Video'} {index + 1}
-                      </span>
-                    </div>
-                    <div className="relative flex-shrink-0" style={{ zIndex: 100 }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleRemoveFile(index);
-                        }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                        onMouseEnter={(e) => {
-                          e.stopPropagation();
-                          // Force visibility on hover
-                          e.currentTarget.style.opacity = '1';
-                          e.currentTarget.style.visibility = 'visible';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.stopPropagation();
-                          // Force visibility on leave
-                          e.currentTarget.style.opacity = '1';
-                          e.currentTarget.style.visibility = 'visible';
-                        }}
-                        onDragStart={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                        onDragOver={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                        draggable={false}
-                        className="w-10 h-10 rounded-lg bg-button-bg text-button-text transition-all duration-200 active:opacity-80 flex items-center justify-center"
-                        title="Remove"
-                        style={{
-                          opacity: 1,
-                          visibility: 'visible',
-                          display: 'flex',
-                          pointerEvents: 'auto',
-                          position: 'relative',
-                          zIndex: 100
-                        }}
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
-              style={{ minHeight: '44px' }}
-            >
-              Cancel
-            </button>
-            {(selectedFiles.length > 0 || (initialFiles && initialFiles.length > 0 && allowMultiple)) && onConfirmMultiple ? (
-              <button
-                onClick={handleConfirmMultiple}
-                disabled={selectedFiles.length === 0 && (!initialFiles || initialFiles.length === 0)}
-                className={`px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80 ${
-                  selectedFiles.length === 0 && (!initialFiles || initialFiles.length === 0) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                style={{ minHeight: '44px' }}
-              >
-                {initialFiles && initialFiles.length > 0 ? 'Save' : 'Add'} {selectedFiles.length > 0 ? `${selectedFiles.length} ${selectedFiles.length === 1 ? 'File' : 'Files'}` : (initialFiles && initialFiles.length > 0 ? `${initialFiles.length} ${initialFiles.length === 1 ? 'File' : 'Files'}` : '')}
-              </button>
-            ) : (
-              <button
-                onClick={mediaUrl ? handleUrlSubmit : () => setError('Please select a file')}
-                className="px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80"
-                style={{ minHeight: '44px' }}
-              >
-                {initialMediaUrl ? 'Save' : 'Add'}
-              </button>
-            )}
+            ))}
           </div>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={handleClose}
+          className="px-4 py-2 rounded-lg border border-border bg-grey-bg-3 text-text-primary font-secondary hover:bg-grey-bg-4 transition-all duration-200 active:opacity-80"
+          style={{ minHeight: "44px" }}
+        >
+          Cancel
+        </button>
+        {(selectedFiles.length > 0 ||
+          (initialFiles && initialFiles.length > 0 && allowMultiple)) &&
+        onConfirmMultiple ? (
+          <button
+            onClick={handleConfirmMultiple}
+            disabled={
+              selectedFiles.length === 0 &&
+              (!initialFiles || initialFiles.length === 0)
+            }
+            className={`px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80 ${
+              selectedFiles.length === 0 &&
+              (!initialFiles || initialFiles.length === 0)
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            }`}
+            style={{ minHeight: "44px" }}
+          >
+            {initialFiles && initialFiles.length > 0 ? "Save" : "Add"}{" "}
+            {selectedFiles.length > 0
+              ? `${selectedFiles.length} ${selectedFiles.length === 1 ? "File" : "Files"}`
+              : initialFiles && initialFiles.length > 0
+                ? `${initialFiles.length} ${initialFiles.length === 1 ? "File" : "Files"}`
+                : ""}
+          </button>
+        ) : (
+          <button
+            onClick={
+              mediaUrl
+                ? handleUrlSubmit
+                : () => setError("Please select a file")
+            }
+            disabled={uploading || !mediaUrl}
+            className={`px-4 py-2 rounded-lg bg-white text-black font-secondary hover:bg-white-80 transition-all duration-200 active:opacity-80 ${
+              uploading || !mediaUrl ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            style={{ minHeight: "44px" }}
+          >
+            {uploading ? "Uploading..." : initialMediaUrl ? "Save" : "Add"}
+          </button>
+        )}
+      </div>
     </Modal>
   );
 };
 
 export default ImageUploadModal;
-
-

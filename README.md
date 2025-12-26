@@ -35,7 +35,12 @@ pnpm install
    pnpx wrangler kv namespace create "STORAGE_KV" --preview
    ```
 
-2. **Configure KV Binding in Cloudflare Dashboard**:
+2. **Create R2 Bucket**:
+   ```bash
+   pnpx wrangler r2 bucket create chronoai-images
+   ```
+
+3. **Configure KV Binding in Cloudflare Dashboard**:
    - Go to Workers & Pages → Your Project → Settings → Functions
    - Scroll to "KV Namespace Bindings"
    - Click "Add binding"
@@ -43,10 +48,19 @@ pnpm install
    - KV namespace: Select your `STORAGE_KV` namespace
    - Click "Save"
 
-3. **For Local Development**:
+4. **Configure R2 Binding in Cloudflare Dashboard**:
+   - In the same Functions settings page
+   - Scroll to "R2 Bucket Bindings"
+   - Click "Add binding"
+   - Variable name: `STORAGE_R2`
+   - R2 bucket: Select your R2 bucket
+   - Click "Save"
+
+5. **For Local Development**:
    Create a `.dev.vars` file in the project root:
    ```
    STORAGE_KV_PREVIEW_ID=your-preview-kv-namespace-id
+   STORAGE_R2_PREVIEW_BUCKET_NAME=chronoai-images
    ```
 
 ### Development
@@ -78,7 +92,7 @@ This project follows a clean architecture pattern:
 
 - **Persisted State**: Canvas data and objects are saved to Cloudflare Workers KV and survive page refreshes
 - **UI State**: Temporary UI state (modals, selections) uses React useState
-- **Storage**: All user data is automatically persisted via Cloudflare Workers KV
+- **Storage**: Canvas metadata stored in Cloudflare Workers KV, images stored in Cloudflare R2
 
 ## Project Structure
 

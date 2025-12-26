@@ -10,7 +10,7 @@ export interface CanvasObject {
   y: number;
   width: number;
   height: number;
-  content: string; // URL for images, text content for text
+  content: string; // R2 URL (https://pub-*.r2.dev/images/*) or base64 data URL (data:image/*;base64,*) for images/videos, text content for text
   fontSize?: number;
   color?: string;
   fontFamily?: string;
