@@ -104,16 +104,40 @@ export async function uploadBase64Image(
 
 /**
  * Extract R2 object key from an R2 URL
- * @param r2Url - The R2 URL (e.g., 'https://pub-xxx.r2.dev/images/uuid.jpg')
+ * @param r2Url - The R2 URL (e.g., 'https://pub-xxx.r2.dev/images/uuid.jpg' or 'https://site.pages.dev/api/r2/images/uuid.jpg')
  * @returns The object key (e.g., 'images/uuid.jpg') or null if not a valid R2 URL
  */
 export function extractKeyFromUrl(r2Url: string): string | null {
   try {
+    // Handle relative URLs (Pages Function URLs)
+    if (r2Url.startsWith('/api/r2/')) {
+      const key = r2Url.replace(/^\/api\/r2\//, '');
+      console.log('Extracted key from relative URL:', key);
+      return decodeURIComponent(key) || null;
+    }
+    
+    // Handle absolute URLs
     const url = new URL(r2Url);
-    // Extract pathname and remove leading slash
-    const key = url.pathname.substring(1);
-    return key || null;
-  } catch {
+    
+    // Check if it's a Pages Function URL
+    if (url.pathname.startsWith('/api/r2/')) {
+      const key = url.pathname.replace(/^\/api\/r2\//, '');
+      console.log('Extracted key from Pages Function URL:', key);
+      return decodeURIComponent(key) || null;
+    }
+    
+    // Check if it's an R2 public URL (pub-*.r2.dev)
+    if (url.hostname.includes('.r2.dev')) {
+      // Extract pathname and remove leading slash
+      const key = url.pathname.substring(1);
+      console.log('Extracted key from R2 public URL:', key);
+      return decodeURIComponent(key) || null;
+    }
+    
+    console.log('Could not extract key from URL:', r2Url);
+    return null;
+  } catch (error) {
+    console.error('Error extracting key from URL:', r2Url, error);
     return null;
   }
 }
@@ -125,23 +149,34 @@ export function extractKeyFromUrl(r2Url: string): string | null {
  * @throws Error if deletion fails
  */
 export async function deleteImage(r2Url: string): Promise<void> {
+  console.log('deleteImage called with URL:', r2Url);
   try {
     const key = extractKeyFromUrl(r2Url);
+    console.log('Extracted key from URL:', key);
     
     if (!key) {
       throw new Error(`Invalid R2 URL: ${r2Url}`);
     }
 
-    const response = await fetch(`${API_URL}/${encodeURIComponent(key)}`, {
+    // Encode each path segment separately to preserve slashes
+    const encodedKey = key.split('/').map(segment => encodeURIComponent(segment)).join('/');
+    const deleteUrl = `${API_URL}/${encodedKey}`;
+    console.log('DELETE request to:', deleteUrl);
+
+    const response = await fetch(deleteUrl, {
       method: 'DELETE',
     });
 
+    console.log('DELETE response status:', response.status, response.statusText);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Delete failed' }));
+      console.error('DELETE error response:', errorData);
       throw new Error(errorData.error || `Delete failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
+    console.log('DELETE result:', result);
 
     if (!result.success) {
       throw new Error(result.error || 'Delete failed');
@@ -158,7 +193,14 @@ export async function deleteImage(r2Url: string): Promise<void> {
  * @returns true if the URL is an R2 URL, false otherwise
  */
 export function isR2Url(url: string): boolean {
-  return url.startsWith('https://pub-') && url.includes('.r2.dev/');
+  // Check for R2 URL patterns:
+  // 1. R2 public URL: https://pub-*.r2.dev/*
+  // 2. Pages Function URL: */api/r2/*
+  const isR2PublicUrl = url.startsWith('https://pub-') && url.includes('.r2.dev/');
+  const isPagesFunctionUrl = url.includes('/api/r2/');
+  const result = isR2PublicUrl || isPagesFunctionUrl;
+  console.log('isR2Url check:', { url: url.substring(0, 50), isR2PublicUrl, isPagesFunctionUrl, result });
+  return result;
 }
 
 /**

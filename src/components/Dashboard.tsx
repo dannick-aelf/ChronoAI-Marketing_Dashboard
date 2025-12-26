@@ -7,6 +7,7 @@ import { SkeletonDashboard } from './Skeleton';
 import { type CanvasObject } from './CanvasEditor';
 import { usePersistedCanvases, usePersistedCanvasObjects } from '../hooks/usePersistedState';
 import { storageService } from '../services/storage/indexedDB';
+import { deleteImage, isR2Url } from '../services/storage/r2';
 import type { CanvasItem } from '../services/storage/types';
 
 type Category = '4:5' | '9:16';
@@ -278,13 +279,53 @@ const Dashboard = () => {
     return `${selectedTab}-${category}-${canvasId}`;
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteModal.canvasId) {
       setDeleteModal({ isOpen: false, canvasId: null });
       return;
     }
 
+    console.log('confirmDelete called for canvas:', deleteModal.canvasId);
     const canvasKey = getCanvasKey(selectedCategory, deleteModal.canvasId);
+    console.log('Canvas key:', canvasKey);
+    
+    // Get canvas objects before deletion to extract R2 URLs
+    const canvasObjectsToDelete = canvasObjects[canvasKey] || [];
+    console.log('Canvas objects to delete:', canvasObjectsToDelete.length, canvasObjectsToDelete);
+    
+    // Filter for R2 URLs
+    const r2Objects = canvasObjectsToDelete.filter((obj: CanvasObject) => {
+      const isMedia = obj.type === 'image' || obj.type === 'video';
+      const hasContent = !!obj.content;
+      const isR2 = hasContent && isR2Url(obj.content);
+      console.log('Object check:', { type: obj.type, content: obj.content?.substring(0, 50), isR2 });
+      return isMedia && hasContent && isR2;
+    });
+    
+    console.log('R2 objects to delete:', r2Objects.length, r2Objects.map(o => o.content));
+    
+    // Delete R2 images associated with this canvas
+    if (r2Objects.length > 0) {
+      const r2DeletionPromises = r2Objects.map(async (obj: CanvasObject) => {
+        try {
+          console.log('Attempting to delete R2 image:', obj.content);
+          await deleteImage(obj.content);
+          console.log('Successfully deleted R2 image:', obj.content);
+        } catch (error) {
+          // Log error but don't fail canvas deletion if R2 deletion fails
+          console.error('Failed to delete R2 image:', obj.content, error);
+        }
+      });
+      
+      // Delete R2 images in parallel (don't wait for completion to proceed with canvas deletion)
+      Promise.all(r2DeletionPromises).catch((error) => {
+        console.error('Error deleting R2 images:', error);
+      });
+    } else {
+      console.log('No R2 images found to delete');
+    }
+    
+    // Delete canvas and its objects
     setCanvases((prev) => {
       return {
         ...prev,
@@ -293,7 +334,7 @@ const Dashboard = () => {
         ),
       };
     });
-      setCanvasObjects((prev) => {
+    setCanvasObjects((prev) => {
       const updated = { ...prev };
       delete updated[canvasKey];
       return updated;
