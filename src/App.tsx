@@ -1,8 +1,12 @@
-import Dashboard from './components/Dashboard'
-import './App.css'
+import Dashboard from './components/Dashboard';
+import './App.css';
 
 function App() {
-  return <Dashboard />
+  return (
+    <div className="app-container-authenticated">
+      <Dashboard />
+    </div>
+  );
 }
 
-export default App
+export default App;

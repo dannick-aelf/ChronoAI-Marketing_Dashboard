@@ -1,35 +1,25 @@
-// Storage implementation using IndexedDB
+// Storage implementation using Cloudflare Workers KV
 
-import {
-  saveCanvases as dbSaveCanvases,
-  getCanvases as dbGetCanvases,
-  saveCanvasObjects as dbSaveCanvasObjects,
-  getCanvasObjects as dbGetCanvasObjects,
-} from '../../db';
+import { kvService } from './kv';
 import type { StoredCanvases, StoredCanvasObjects } from './types';
 
 export const storageService = {
   // Canvas operations with tab support
   async saveCanvases(canvases: StoredCanvases, tab?: string): Promise<void> {
-    await dbSaveCanvases(canvases, tab);
+    await kvService.saveCanvases(canvases, tab);
   },
 
   async loadCanvases(tab?: string): Promise<StoredCanvases | undefined> {
-    const result = await dbGetCanvases(tab);
-    // Type guard to ensure result matches StoredCanvases structure
-    if (result && '4:5' in result && '9:16' in result) {
-      return result as StoredCanvases;
-    }
-    return undefined;
+    return await kvService.loadCanvases(tab);
   },
 
   // Canvas objects operations with tab support
   async saveCanvasObjects(canvasObjects: StoredCanvasObjects, tab?: string): Promise<void> {
-    await dbSaveCanvasObjects(canvasObjects, tab);
+    await kvService.saveCanvasObjects(canvasObjects, tab);
   },
 
   async loadCanvasObjects(tab?: string): Promise<StoredCanvasObjects | undefined> {
-    return await dbGetCanvasObjects(tab);
+    return await kvService.loadCanvasObjects(tab);
   },
 };
 

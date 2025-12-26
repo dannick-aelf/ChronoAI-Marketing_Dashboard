@@ -1,0 +1,16 @@
+{
+  "build": {
+    "command": "pnpm run build",
+    "cwd": ".",
+    "watch": []
+  },
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
+    }
+  ]
+}

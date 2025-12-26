@@ -8,7 +8,7 @@ A modern canvas-based marketing asset editor for creating social media content w
 - 🖼️ Image and video upload support
 - ✏️ Text editing with custom fonts and colors
 - 📱 Instagram-style grid layout
-- 💾 Persistent storage with IndexedDB
+- 💾 Persistent storage with Cloudflare Workers KV
 - 🎨 Responsive canvas editor
 - 🖥️ Presentation carousel view
 
@@ -17,26 +17,52 @@ A modern canvas-based marketing asset editor for creating social media content w
 - React 19 + TypeScript
 - Vite
 - Tailwind CSS v4
-- IndexedDB for persistence
+- Cloudflare Workers KV for persistence
 
 ## Getting Started
 
 ### Installation
 
 ```bash
-npm install
+pnpm install
 ```
+
+### Cloudflare Pages Functions Setup
+
+1. **Create KV Namespaces**:
+   ```bash
+   pnpx wrangler kv namespace create "STORAGE_KV"
+   pnpx wrangler kv namespace create "STORAGE_KV" --preview
+   ```
+
+2. **Configure KV Binding in Cloudflare Dashboard**:
+   - Go to Workers & Pages → Your Project → Settings → Functions
+   - Scroll to "KV Namespace Bindings"
+   - Click "Add binding"
+   - Variable name: `STORAGE_KV`
+   - KV namespace: Select your `STORAGE_KV` namespace
+   - Click "Save"
+
+3. **For Local Development**:
+   Create a `.dev.vars` file in the project root:
+   ```
+   STORAGE_KV_PREVIEW_ID=your-preview-kv-namespace-id
+   ```
 
 ### Development
 
 ```bash
-npm run dev
+# Start the Vite dev server
+pnpm run dev
+
+# For full Pages Functions support, use wrangler pages dev instead:
+pnpx wrangler pages dev dist --compatibility-date=2024-01-01
 ```
 
 ### Build
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ## Architecture
@@ -50,9 +76,9 @@ This project follows a clean architecture pattern:
 
 ### State Management
 
-- **Persisted State**: Canvas data and objects are saved to IndexedDB and survive page refreshes
+- **Persisted State**: Canvas data and objects are saved to Cloudflare Workers KV and survive page refreshes
 - **UI State**: Temporary UI state (modals, selections) uses React useState
-- **Storage**: All user data is automatically persisted via IndexedDB
+- **Storage**: All user data is automatically persisted via Cloudflare Workers KV
 
 ## Project Structure
 
@@ -67,9 +93,12 @@ src/
 │   └── usePersistedState.ts
 ├── services/             # External APIs & storage
 │   └── storage/
-│       ├── indexedDB.ts
+│       ├── indexedDB.ts  # Storage service (uses KV)
+│       ├── kv.ts         # Cloudflare Pages Functions KV client
 │       └── types.ts
-├── db.ts                 # Low-level IndexedDB operations
+├── functions/            # Cloudflare Pages Functions
+│   └── api/
+│       └── storage.ts    # Pages Function KV API handler
 └── ...
 ```
 

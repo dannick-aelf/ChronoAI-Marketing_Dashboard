@@ -28,9 +28,17 @@ export const usePersistedCanvases = (initialValue: StoredCanvases, tab?: string)
   // Save to IndexedDB whenever canvases change
   useEffect(() => {
     if (!isLoading) {
-      storageService.saveCanvases(canvases, tab).catch((error: unknown) => {
-        console.error('Failed to save canvases:', error);
-      });
+      const saveData = async () => {
+        try {
+          await storageService.saveCanvases(canvases, tab);
+          console.log('Canvases saved successfully');
+        } catch (error: unknown) {
+          console.error('Failed to save canvases:', error);
+          // Don't throw - we don't want to break the UI if save fails
+        }
+      };
+      
+      saveData();
     }
   }, [canvases, isLoading, tab]);
 
@@ -65,9 +73,25 @@ export const usePersistedCanvasObjects = (initialValue: StoredCanvasObjects, tab
   // Save to IndexedDB whenever canvasObjects change
   useEffect(() => {
     if (!isLoading) {
-      storageService.saveCanvasObjects(canvasObjects, tab).catch((error: unknown) => {
-        console.error('Failed to save canvas objects:', error);
-      });
+      const saveData = async () => {
+        try {
+          // Calculate approximate size for debugging
+          const jsonString = JSON.stringify(canvasObjects);
+          const sizeInMB = new Blob([jsonString]).size / (1024 * 1024);
+          
+          if (sizeInMB > 20) {
+            console.warn(`Large canvas objects detected: ${sizeInMB.toFixed(2)}MB. This may take longer to save.`);
+          }
+          
+          await storageService.saveCanvasObjects(canvasObjects, tab);
+          console.log(`Canvas objects saved successfully (${sizeInMB.toFixed(2)}MB)`);
+        } catch (error: unknown) {
+          console.error('Failed to save canvas objects:', error);
+          // Don't throw - we don't want to break the UI if save fails
+        }
+      };
+      
+      saveData();
     }
   }, [canvasObjects, isLoading, tab]);
 
