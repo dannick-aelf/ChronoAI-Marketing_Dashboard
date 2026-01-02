@@ -1,27 +1,17 @@
-# Lumen Marketing Assets
+# ChronoAI Marketing Dashboard
 
-A modern canvas-based marketing asset editor for creating social media content with multiple aspect ratios.
+A monorepo for ChronoAI marketing tools and dashboards.
 
-## Features
+## Workspaces
 
-- 📐 Multiple aspect ratios (4:5 and 9:16)
-- 🖼️ Image and video upload support
-- ✏️ Text editing with custom fonts and colors
-- 📱 Instagram-style grid layout
-- 💾 Persistent storage with IndexedDB
-- 🎨 Responsive canvas editor
-- 🖥️ Presentation carousel view
-
-## Tech Stack
-
-- React 19 + TypeScript
-- Vite
-- Tailwind CSS v4
-- IndexedDB for persistence
+- **dashboard** - Marketing dashboard application for managing marketing assets
+- **authentication** - Authentication service for ChronoAI
 
 ## Getting Started
 
 ### Installation
+
+Install all workspace dependencies:
 
 ```bash
 npm install
@@ -29,50 +19,56 @@ npm install
 
 ### Development
 
+Run the dashboard development server:
+
 ```bash
 npm run dev
 ```
 
+Run the authentication development server:
+
+```bash
+npm run dev:auth
+```
+
+Or run from a specific workspace:
+
+```bash
+npm run dev --workspace=dashboard
+npm run dev --workspace=authentication
+```
+
 ### Build
+
+Build all workspaces:
 
 ```bash
 npm run build
 ```
 
-## Architecture
+Or build a specific workspace:
 
-This project follows a clean architecture pattern:
-
-- `src/components/` - React components
-- `src/services/` - External APIs & storage
-- `src/hooks/` - Custom React hooks
-- `src/db.ts` - Low-level IndexedDB operations
-
-### State Management
-
-- **Persisted State**: Canvas data and objects are saved to IndexedDB and survive page refreshes
-- **UI State**: Temporary UI state (modals, selections) uses React useState
-- **Storage**: All user data is automatically persisted via IndexedDB
+```bash
+npm run build --workspace=dashboard
+```
 
 ## Project Structure
 
 ```
-src/
-├── components/           # React components
-│   ├── Canvas.tsx
-│   ├── CanvasEditor.tsx
-│   ├── Dashboard.tsx
-│   └── ...
-├── hooks/                # Custom React hooks
-│   └── usePersistedState.ts
-├── services/             # External APIs & storage
-│   └── storage/
-│       ├── indexedDB.ts
-│       └── types.ts
-├── db.ts                 # Low-level IndexedDB operations
-└── ...
+.
+├── dashboard/          # Marketing dashboard application
+│   ├── src/           # Source code
+│   ├── public/        # Public assets
+│   └── package.json   # Dashboard dependencies
+├── authentication/     # Authentication service
+│   ├── src/           # Source code
+│   ├── public/        # Public assets
+│   └── package.json   # Authentication dependencies
+├── package.json       # Root workspace configuration
+└── README.md         # This file
 ```
 
 ## License
 
 Private
+

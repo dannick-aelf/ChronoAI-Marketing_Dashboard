@@ -23,3 +23,6 @@ deploy.zip
 *.njsproj
 *.sln
 *.sw?
+
+# Spec-kit / Claude agent folder (may contain credentials)
+.claude/

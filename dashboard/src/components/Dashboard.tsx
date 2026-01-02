@@ -458,16 +458,17 @@ const Dashboard = () => {
       <aside className="w-64 bg-grey-bg-2 border-r border-border flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-border">
-          <h1 
-            className="font-primary text-text-primary w-full"
-            style={{
-              fontSize: 'clamp(0.75rem, 8vw, 1.5rem)',
-              lineHeight: '1.2',
-            }}
-          >
-            <div className="italic">ChronoAI</div>
-            <div className="font-bold" style={{ fontSize: '18px' }}>Marketing Dashboard</div>
-          </h1>
+          <div className="w-full">
+            <img 
+              src={theme === 'dark' ? '/Icons/Logo_dark.png' : '/Icons/Logo_light.png'}
+              alt="ChronoAI"
+              className="w-full h-auto object-contain"
+              style={{ maxHeight: '60px' }}
+            />
+            <div className="font-normal text-text-primary mt-2" style={{ fontSize: '18px' }}>
+              Marketing Dashboard
+            </div>
+          </div>
           
           {/* Filter Section */}
           <div className="mt-4 space-y-4">
